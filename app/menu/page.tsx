@@ -51,7 +51,7 @@ export default function MenuPage() {
   return (
     <AppShell>
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <div className="bg-white px-4 pt-12 lg:pt-5 pb-4 shadow-sm">
+        <div className="bg-white px-4 pt-12 pb-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-black text-gray-900">Menu Editor</h1>
             {isOwner && (
@@ -67,7 +67,7 @@ export default function MenuPage() {
           </div>
         </div>
 
-        <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
+        <div className="px-4 py-4 space-y-3">
           {categories.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-300">
               <span className="text-5xl mb-3">🍽️</span>
@@ -130,10 +130,19 @@ export default function MenuPage() {
           )}
         </div>
 
-        <ItemEditModal key={editItem ? (editItem.id ?? "new") : "closed"} item={editItem} categories={categories}
-          onClose={() => setEditItem(null)} onSave={handleSaveItem} />
-        <CatEditModal key={editCat ? (editCat.id ?? "newcat") : "closedcat"} cat={editCat}
-          onClose={() => setEditCat(null)} onSave={handleSaveCat} />
+        <ItemEditModal
+          key={editItem ? (editItem.id ?? "new") : "closed"}
+          item={editItem}
+          categories={categories}
+          onClose={() => setEditItem(null)}
+          onSave={handleSaveItem}
+        />
+        <CatEditModal
+          key={editCat ? (editCat.id ?? "newcat") : "closedcat"}
+          cat={editCat}
+          onClose={() => setEditCat(null)}
+          onSave={handleSaveCat}
+        />
       </div>
     </AppShell>
   );
@@ -152,50 +161,63 @@ function ItemEditModal({ item, categories, onClose, onSave }: {
   const [isVeg, setIsVeg] = useState(item?.isVeg ?? true);
   const [isAvailable, setIsAvailable] = useState(item?.isAvailable ?? true);
   const [portionEnabled, setPortionEnabled] = useState(item?.portionEnabled ?? false);
-  const [halfPrice, setHalfPrice] = useState(item?.portions?.find((p) => p.label === "Half")?.pricePaise ? String(item.portions!.find((p) => p.label === "Half")!.pricePaise / 100) : "");
-  const [fullPrice, setFullPrice] = useState(item?.portions?.find((p) => p.label === "Full")?.pricePaise ? String(item.portions!.find((p) => p.label === "Full")!.pricePaise / 100) : "");
+  const [halfPrice, setHalfPrice] = useState(
+    item?.portions?.find((p) => p.label === "Half")?.pricePaise
+      ? String(item.portions!.find((p) => p.label === "Half")!.pricePaise / 100)
+      : ""
+  );
+  const [fullPrice, setFullPrice] = useState(
+    item?.portions?.find((p) => p.label === "Full")?.pricePaise
+      ? String(item.portions!.find((p) => p.label === "Full")!.pricePaise / 100)
+      : ""
+  );
   const [addOns, setAddOns] = useState<AddOn[]>(item?.addOns ?? []);
   const [aoName, setAoName] = useState("");
   const [aoPrice, setAoPrice] = useState("");
   const isNew = !item?.id;
 
   const addAddOn = () => {
-    if (!aoName.trim()) return;
-    setAddOns((prev) => [...prev, {
-      id: crypto.randomUUID(),
-      name: aoName.trim(),
-      pricePaise: Math.round(Number(aoPrice) * 100) || 0,
-    }]);
+    const trimmed = aoName.trim();
+    if (!trimmed) return;
+    setAddOns((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: trimmed, pricePaise: Math.round(Number(aoPrice) * 100) || 0 },
+    ]);
     setAoName("");
     setAoPrice("");
   };
 
   const handleSave = () => {
     if (!name.trim() || !catId) return;
-    const portions = portionEnabled ? [
-      { label: "Half", pricePaise: Math.round(Number(halfPrice) * 100) || 0 },
-      { label: "Full", pricePaise: Math.round(Number(fullPrice) * 100) || 0 },
-    ] : item?.portions;
+    const portions = portionEnabled
+      ? [
+          { label: "Half", pricePaise: Math.round(Number(halfPrice) * 100) || 0 },
+          { label: "Full", pricePaise: Math.round(Number(fullPrice) * 100) || 0 },
+        ]
+      : item?.portions;
     onSave({
       id: item?.id ?? crypto.randomUUID(),
-      name: name.trim(), categoryId: catId,
+      name: name.trim(),
+      categoryId: catId,
       pricePaise: Math.round(Number(priceRupee) * 100) || 0,
       costPricePaise: costRupee ? Math.round(Number(costRupee) * 100) : undefined,
-      isVeg, isAvailable, portionEnabled, portions, addOns,
-      sizes: item?.sizes, fastAdd: item?.fastAdd,
+      isVeg,
+      isAvailable,
+      portionEnabled,
+      portions,
+      addOns,
+      sizes: item?.sizes,
+      fastAdd: item?.fastAdd,
     });
   };
 
   return (
     <Modal open={!!item} onClose={onClose} title={isNew ? "Add Item" : "Edit Item"} fullScreen>
-      <div className="px-4 pb-10 pt-2 space-y-4 max-w-lg mx-auto w-full">
-
+      <div className="px-4 pb-10 pt-2 space-y-4">
         <div>
           <label className="block text-xs font-bold text-gray-500 mb-1.5">Item Name *</label>
-          <input className="bm-input" placeholder="e.g. Masala Chai" value={name}
-            onChange={(e) => setName(e.target.value)} autoFocus />
+          <input className="bm-input" placeholder="e.g. Masala Chai" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </div>
-
         <div>
           <label className="block text-xs font-bold text-gray-500 mb-1.5">Category *</label>
           <select className="bm-input" value={catId} onChange={(e) => setCatId(e.target.value)}>
@@ -203,53 +225,37 @@ function ItemEditModal({ item, categories, onClose, onSave }: {
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-
         <div>
           <label className="block text-xs font-bold text-gray-500 mb-1.5">Selling Price (₹) *</label>
-          <input type="number" className="bm-input" placeholder="0" value={priceRupee}
-            onChange={(e) => setPriceRupee(e.target.value)} />
+          <input type="number" className="bm-input" placeholder="0" value={priceRupee} onChange={(e) => setPriceRupee(e.target.value)} />
         </div>
-
         <div>
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">
-            Cost Price (₹) <span className="font-normal text-gray-400">optional</span>
-          </label>
-          <input type="number" className="bm-input" placeholder="0" value={costRupee}
-            onChange={(e) => setCostRupee(e.target.value)} />
+          <label className="block text-xs font-bold text-gray-500 mb-1.5">Cost Price (₹) <span className="font-normal text-gray-400">optional</span></label>
+          <input type="number" className="bm-input" placeholder="0" value={costRupee} onChange={(e) => setCostRupee(e.target.value)} />
         </div>
-
         <div>
           <label className="block text-xs font-bold text-gray-500 mb-1.5">Type</label>
           <div className="flex gap-2">
-            <button onClick={() => setIsVeg(true)}
-              className={`flex-1 h-11 rounded-xl border-2 font-bold text-sm press transition-all ${isVeg ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 text-gray-500"}`}>
-              🟢 Veg
-            </button>
-            <button onClick={() => setIsVeg(false)}
-              className={`flex-1 h-11 rounded-xl border-2 font-bold text-sm press transition-all ${!isVeg ? "border-red-500 bg-red-50 text-red-600" : "border-gray-200 text-gray-500"}`}>
-              🔴 Non-Veg
-            </button>
+            <button onClick={() => setIsVeg(true)} className={`flex-1 h-11 rounded-xl border-2 font-bold text-sm press transition-all ${isVeg ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 text-gray-500"}`}>🟢 Veg</button>
+            <button onClick={() => setIsVeg(false)} className={`flex-1 h-11 rounded-xl border-2 font-bold text-sm press transition-all ${!isVeg ? "border-red-500 bg-red-50 text-red-600" : "border-gray-200 text-gray-500"}`}>🔴 Non-Veg</button>
           </div>
         </div>
-
         <div className="space-y-3">
           <Toggle label="Available" value={isAvailable} onChange={setIsAvailable} />
           <Toggle label="Portion pricing (Half / Full)" value={portionEnabled} onChange={setPortionEnabled} />
         </div>
-
         {portionEnabled && (
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5">Half (₹)</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5">Half price (₹)</label>
               <input type="number" className="bm-input" placeholder="0" value={halfPrice} onChange={(e) => setHalfPrice(e.target.value)} />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5">Full (₹)</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5">Full price (₹)</label>
               <input type="number" className="bm-input" placeholder="0" value={fullPrice} onChange={(e) => setFullPrice(e.target.value)} />
             </div>
           </div>
         )}
-
         <div>
           <label className="block text-xs font-bold text-gray-500 mb-2">Add-ons</label>
           {addOns.length > 0 && (
@@ -258,35 +264,20 @@ function ItemEditModal({ item, categories, onClose, onSave }: {
                 <div key={ao.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
                   <span className="flex-1 text-sm font-semibold text-gray-800">{ao.name}</span>
                   {ao.pricePaise > 0 && <span className="text-xs text-gray-400 shrink-0">+{fmtRupee(ao.pricePaise)}</span>}
-                  <button onClick={() => setAddOns((p) => p.filter((a) => a.id !== ao.id))}
-                    className="text-gray-300 hover:text-red-400 press shrink-0">
-                    <X size={14} />
-                  </button>
+                  <button onClick={() => setAddOns((p) => p.filter((a) => a.id !== ao.id))} className="text-gray-300 hover:text-red-400 press shrink-0 ml-1"><X size={14} /></button>
                 </div>
               ))}
             </div>
           )}
           <div className="space-y-2">
-            <input
-              className="bm-input"
-              placeholder="Add-on name e.g. Extra Cheese"
-              value={aoName}
-              onChange={(e) => setAoName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addAddOn()}
-            />
+            <input className="bm-input" placeholder="Add-on name e.g. Extra Cheese" value={aoName} onChange={(e) => setAoName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addAddOn()} />
             <div className="flex gap-2">
-              <input type="number" className="bm-input flex-1" placeholder="Price ₹ (0 = free)"
-                value={aoPrice} onChange={(e) => setAoPrice(e.target.value)} />
-              <button onClick={addAddOn} disabled={!aoName.trim()}
-                className="px-5 h-11 rounded-xl bg-primary-500 text-white font-bold press shadow-sm disabled:opacity-40 shrink-0">
-                Add
-              </button>
+              <input type="number" className="bm-input flex-1" placeholder="Price ₹ (0 for free)" value={aoPrice} onChange={(e) => setAoPrice(e.target.value)} />
+              <button onClick={addAddOn} disabled={!aoName.trim()} className="px-4 h-11 rounded-xl bg-primary-500 text-white font-bold press shadow-sm disabled:opacity-40 shrink-0">Add</button>
             </div>
           </div>
         </div>
-
-        <button onClick={handleSave} disabled={!name.trim() || !catId}
-          className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold disabled:opacity-40 press shadow-md">
+        <button onClick={handleSave} disabled={!name.trim() || !catId} className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold disabled:opacity-40 press shadow-md mt-2">
           {isNew ? "Add Item" : "Save Changes"}
         </button>
       </div>
@@ -306,11 +297,12 @@ function CatEditModal({ cat, onClose, onSave }: {
       <div className="px-5 pb-6 pt-2 space-y-4">
         <div>
           <label className="block text-xs font-bold text-gray-500 mb-1.5">Category Name</label>
-          <input className="bm-input" placeholder="e.g. Main Course" value={name}
-            onChange={(e) => setName(e.target.value)} autoFocus />
+          <input className="bm-input" placeholder="e.g. Main Course" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </div>
-        <button onClick={() => onSave({ id: cat?.id ?? crypto.randomUUID(), name: name.trim(), sortOrder: cat?.sortOrder ?? 0 })}
-          disabled={!name.trim()} className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold disabled:opacity-40 press shadow-md">
+        <button
+          onClick={() => onSave({ id: cat?.id ?? crypto.randomUUID(), name: name.trim(), sortOrder: cat?.sortOrder ?? 0 })}
+          disabled={!name.trim()}
+          className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold disabled:opacity-40 press shadow-md">
           {isNew ? "Add Category" : "Save"}
         </button>
       </div>
@@ -322,7 +314,8 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm font-semibold text-gray-700">{label}</span>
-      <button onClick={() => onChange(!value)}
+      <button
+        onClick={() => onChange(!value)}
         className={`w-11 h-6 rounded-full relative transition-colors press ${value ? "bg-primary-500" : "bg-gray-200"}`}>
         <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${value ? "left-6" : "left-1"}`} />
       </button>
