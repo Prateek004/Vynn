@@ -5,16 +5,14 @@ import { useApp } from "@/lib/store/AppContext";
 import AppShell from "@/components/ui/AppShell";
 import { Cloud, CloudOff, LogOut, Trash2 } from "lucide-react";
 import { isSupabaseEnabled } from "@/lib/supabase/client";
-import { signOut } from "@/lib/supabase/auth";
 import { HIDE_FRANCHISE } from "@/lib/utils";
 import type { StockSettings } from "@/lib/types";
 
 const GST_OPTIONS = [0, 5, 12, 18];
-
 const BAR_BIZ_TYPES = ["cafe", "restaurant", "franchise"].filter((t) => !HIDE_FRANCHISE || t !== "franchise");
 
 export default function SettingsPage() {
-  const { state, setSession, showToast } = useApp();
+  const { state, setSession, logout, showToast } = useApp();
   const router = useRouter();
   const { session } = state;
   const isOwner = session?.role === "owner";
@@ -58,8 +56,7 @@ export default function SettingsPage() {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    setSession(null);
+    await logout();
     router.replace("/auth");
   };
 
@@ -78,7 +75,6 @@ export default function SettingsPage() {
         </div>
 
         <div className="px-4 py-4 space-y-4">
-          {/* Account */}
           <Section title="Account">
             <div className="px-4 py-3 space-y-1">
               <Row label="Username" value={session?.username ?? "—"} />
@@ -88,7 +84,6 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          {/* Billing */}
           <Section title="Billing">
             <div className="px-4 py-3">
               <p className="text-sm font-bold text-gray-700 mb-2">GST Rate</p>
@@ -106,20 +101,14 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          {/* POS Features */}
           {isOwner && (
             <Section title="POS Features">
               <div className="px-4 py-3 space-y-4">
-                <Toggle
-                  label="Table Management"
-                  desc="Enable table selection in billing"
-                  value={tablesEnabled}
-                  onChange={setTablesEnabled}
-                />
+                <Toggle label="Table Management" desc="Enable table selection in billing" value={tablesEnabled} onChange={setTablesEnabled} />
                 {tablesEnabled && (
                   <div className="pl-2">
                     <p className="text-xs font-bold text-gray-500 mb-1">Number of Tables</p>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       {[5, 10, 15, 20, 25, 30].map((n) => (
                         <button key={n} onClick={() => setTableCount(n)}
                           className={`w-10 h-9 rounded-xl border-2 text-sm font-bold press transition-all ${tableCount === n ? "border-primary-500 bg-primary-50 text-primary-600" : "border-gray-200 text-gray-600"}`}>
@@ -129,25 +118,22 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 )}
-                <Toggle
-                  label="KOT (Kitchen Order Ticket)"
-                  desc="Print kitchen tickets with orders"
-                  value={kotEnabled}
-                  onChange={setKotEnabled}
-                />
+                <Toggle label="KOT (Kitchen Order Ticket)" desc="Print kitchen tickets with orders" value={kotEnabled} onChange={setKotEnabled} />
                 {showBarToggle && (
-                  <Toggle
-                    label="Bar Tab"
-                    desc="Enable bar section in Stock"
-                    value={barEnabled}
-                    onChange={setBarEnabled}
-                  />
+                  <>
+                    <div className="h-px bg-gray-100" />
+                    <Toggle label="Bar Tab" desc="Enable bar section in Stock management" value={barEnabled} onChange={setBarEnabled} />
+                    {barEnabled && (
+                      <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                        Bar tab is active. Go to Stock → Bar to manage bar inventory.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </Section>
           )}
 
-          {/* Cloud Sync */}
           <Section title="Cloud Sync">
             <div className="px-4 py-4 flex items-center gap-3">
               {isSupabaseEnabled() ? (
@@ -191,7 +177,7 @@ export default function SettingsPage() {
 
           <button onClick={handleLogout}
             className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl border-2 border-gray-200 font-bold text-gray-700 press">
-            <LogOut size={16} />Sign Out
+            <LogOut size={16} /> Sign Out
           </button>
 
           <Section title="Danger Zone">
