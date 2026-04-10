@@ -13,7 +13,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Servezy — Smart POS",
+  title: "Vynn — Smart POS",
   description: "Fast offline-first POS for Indian food businesses",
   manifest: "/manifest.json",
 };
