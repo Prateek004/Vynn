@@ -85,9 +85,9 @@ export default function AuthPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5 py-10">
       <div className="flex flex-col items-center mb-8">
         <div className="w-16 h-16 rounded-3xl bg-primary-500 flex items-center justify-center shadow-lg mb-3">
-          <span className="text-white text-3xl font-black">S</span>
+          <span className="text-white text-3xl font-black">V</span>
         </div>
-        <h1 className="text-2xl font-black text-gray-900">Servezy</h1>
+        <h1 className="text-2xl font-black text-gray-900">Vynn</h1>
         <p className="text-sm text-gray-400 font-medium mt-0.5">Smart POS for Indian F&amp;B</p>
       </div>
 
@@ -110,7 +110,8 @@ export default function AuthPage() {
           <div className="relative">
             <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input className="bm-input pl-10 pr-11 border-2" placeholder="Password"
-              type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} />
+              type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()} />
             <button onClick={() => setShowPwd((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
               {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
