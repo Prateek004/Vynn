@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, ReactNode } from "react";
 import type { MenuItem, MenuCategory, CartItem, Order, UserSession, ServiceMode } from "@/lib/types";
-import { calcDiscount, calcGST, generateBillNumber, toP } from "@/lib/utils";
+import { calcDiscount, calcGST, generateBillNumber } from "@/lib/utils";
 import { MENU_TEMPLATES } from "@/lib/utils/menuTemplates";
 
 export interface Toast {
@@ -51,12 +51,20 @@ type Action =
   | { type: "CATEGORY_UPSERT"; payload: MenuCategory }
   | { type: "CATEGORY_DELETE"; id: string }
   | { type: "TOAST_ADD"; payload: Toast }
-  | { type: "TOAST_REMOVE"; id: string };
+  | { type: "TOAST_REMOVE"; id: string }
+  | { type: "LOGOUT" };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "INIT_DONE":
-      return { ...state, session: action.session, menuItems: action.items, categories: action.categories, orders: action.orders, isLoading: false };
+      return {
+        ...state,
+        session: action.session,
+        menuItems: action.items,
+        categories: action.categories,
+        orders: action.orders,
+        isLoading: false,
+      };
     case "SET_SESSION":
       return { ...state, session: action.payload };
     case "SET_MENU":
@@ -91,9 +99,12 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, cart: [...state.cart, incoming] };
     }
     case "CART_QTY": {
-      const cart = action.qty <= 0
-        ? state.cart.filter((i) => i.cartId !== action.cartId)
-        : state.cart.map((i) => i.cartId === action.cartId ? { ...i, qty: action.qty } : i);
+      const cart =
+        action.qty <= 0
+          ? state.cart.filter((i) => i.cartId !== action.cartId)
+          : state.cart.map((i) =>
+              i.cartId === action.cartId ? { ...i, qty: action.qty } : i
+            );
       return { ...state, cart };
     }
     case "CART_REMOVE":
@@ -106,7 +117,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         menuItems: state.menuItems.some((i) => i.id === action.payload.id)
-          ? state.menuItems.map((i) => i.id === action.payload.id ? action.payload : i)
+          ? state.menuItems.map((i) => (i.id === action.payload.id ? action.payload : i))
           : [...state.menuItems, action.payload],
       };
     case "MENU_ITEM_DELETE":
@@ -115,7 +126,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         categories: state.categories.some((c) => c.id === action.payload.id)
-          ? state.categories.map((c) => c.id === action.payload.id ? action.payload : c)
+          ? state.categories.map((c) => (c.id === action.payload.id ? action.payload : c))
           : [...state.categories, action.payload],
       };
     case "CATEGORY_DELETE":
@@ -124,6 +135,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, toasts: [...state.toasts, action.payload] };
     case "TOAST_REMOVE":
       return { ...state, toasts: state.toasts.filter((t) => t.id !== action.id) };
+    case "LOGOUT":
+      return { ...initialState, isLoading: false, toasts: state.toasts };
     default:
       return state;
   }
@@ -132,6 +145,8 @@ function reducer(state: AppState, action: Action): AppState {
 interface AppContextValue {
   state: AppState;
   setSession: (s: UserSession | null) => void;
+  login: (session: UserSession) => Promise<void>;
+  logout: () => Promise<void>;
   setServiceMode: (m: ServiceMode) => void;
   setTableNumber: (n: number | undefined) => void;
   loadMenuFromTemplate: (businessType: string, userId: string) => Promise<void>;
@@ -158,17 +173,16 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // On boot: restore session from localStorage and hydrate all data from IndexedDB
   useEffect(() => {
     async function init() {
       try {
         const raw = localStorage.getItem("sz_session");
         const session: UserSession | null = raw ? JSON.parse(raw) : null;
-
         if (!session) {
           dispatch({ type: "INIT_DONE", session: null, items: [], categories: [], orders: [] });
           return;
         }
-
         const db = await import("@/lib/db");
         const uid = session.userId;
         const [items, categories, orders] = await Promise.all([
@@ -177,7 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           db.dbGetTodaysOrders(uid),
         ]);
         dispatch({ type: "INIT_DONE", session, items, categories, orders });
-        import("@/lib/supabase/sync").then(({ backgroundSync }) => backgroundSync()).catch(() => {});
+        import("@/lib/supabase/sync").then(({ backgroundSync }) => backgroundSync(uid)).catch(() => {});
       } catch {
         dispatch({ type: "INIT_DONE", session: null, items: [], categories: [], orders: [] });
       }
@@ -185,6 +199,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
+  // login: save session AND reload all user data from IndexedDB in one go
+  const login = useCallback(async (session: UserSession) => {
+    localStorage.setItem("sz_session", JSON.stringify(session));
+    try {
+      const db = await import("@/lib/db");
+      const uid = session.userId;
+      const [items, categories, orders] = await Promise.all([
+        db.dbGetAllMenuItems(uid),
+        db.dbGetAllCategories(uid),
+        db.dbGetTodaysOrders(uid),
+      ]);
+      dispatch({ type: "INIT_DONE", session, items, categories, orders });
+      import("@/lib/supabase/sync").then(({ backgroundSync }) => backgroundSync(uid)).catch(() => {});
+    } catch {
+      dispatch({ type: "INIT_DONE", session, items: [], categories: [], orders: [] });
+    }
+  }, []);
+
+  // logout: clear storage and wipe all state
+  const logout = useCallback(async () => {
+    localStorage.removeItem("sz_session");
+    try {
+      const { signOut } = await import("@/lib/supabase/auth");
+      await signOut();
+    } catch {}
+    dispatch({ type: "LOGOUT" });
+  }, []);
+
+  // setSession: kept for back-compat (settings save uses this)
   const setSession = useCallback((s: UserSession | null) => {
     if (s) localStorage.setItem("sz_session", JSON.stringify(s));
     else localStorage.removeItem("sz_session");
@@ -264,7 +307,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await db.dbSaveOrder(order, uid);
     dispatch({ type: "ORDER_ADD", payload: order });
     dispatch({ type: "CART_CLEAR" });
-
     import("@/lib/supabase/sync").then(({ syncOrder }) => syncOrder(order)).catch(() => {});
     return order;
   }, [state.cart, state.session, state.serviceMode, state.tableNumber]);
@@ -305,7 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      state, setSession, setServiceMode, setTableNumber, loadMenuFromTemplate,
+      state, setSession, login, logout, setServiceMode, setTableNumber, loadMenuFromTemplate,
       addToCart, updateCartQty, removeFromCart, clearCart, placeOrder,
       upsertMenuItem, deleteMenuItem, upsertCategory, deleteCategory, showToast,
     }}>
