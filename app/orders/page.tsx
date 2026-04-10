@@ -29,7 +29,7 @@ export default function OrdersPage() {
   const handleSync = async () => {
     setSyncing(true);
     const { backgroundSync } = await import("@/lib/supabase/sync");
-    await backgroundSync();
+    await backgroundSync(uid);
     const { dbGetAllOrders } = await import("@/lib/db");
     setAllOrders(await dbGetAllOrders(uid));
     setSyncing(false);
@@ -74,7 +74,6 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Sync status */}
           <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl shadow-sm text-xs font-semibold">
             {isSupabaseEnabled()
               ? <><Cloud size={14} className="text-green-500" /><span className="text-green-600">Cloud sync enabled</span></>
@@ -82,7 +81,6 @@ export default function OrdersPage() {
             }
           </div>
 
-          {/* Filter tabs */}
           <div className="flex rounded-2xl bg-gray-100 p-1">
             {(["today", "all"] as const).map((f) => (
               <button key={f} onClick={() => setFilter(f)}
@@ -92,7 +90,6 @@ export default function OrdersPage() {
             ))}
           </div>
 
-          {/* Order list */}
           {displayed.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-300">
               <ShoppingBag size={48} className="mb-3" />
