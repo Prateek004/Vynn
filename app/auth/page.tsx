@@ -21,7 +21,7 @@ const BIZ_TYPES = [
 
 export default function AuthPage() {
   const router = useRouter();
-  const { setSession, loadMenuFromTemplate } = useApp();
+  const { login, loadMenuFromTemplate } = useApp();
   const [mode, setMode] = useState<Mode>("signin");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -48,9 +48,9 @@ export default function AuthPage() {
     if (mode === "signup") {
       const result = await signUp({ username, password, role, businessName, ownerName, businessType: bizType });
       if (!result.ok) { setError(result.error ?? "Signup failed"); setLoading(false); return; }
-      const login = await signIn(username, password);
-      if (!login.ok) { setError("Signed up! Please sign in."); setLoading(false); setMode("signin"); return; }
-      const uid = login.userId ?? `local_${username}`;
+      const loginResult = await signIn(username, password);
+      if (!loginResult.ok) { setError("Signed up! Please sign in."); setLoading(false); setMode("signin"); return; }
+      const uid = loginResult.userId ?? `local_${username}`;
       const session = {
         userId: uid,
         username,
@@ -59,7 +59,7 @@ export default function AuthPage() {
         businessType: bizType as BusinessType,
         gstPercent: 5,
       };
-      setSession(session);
+      await login(session);
       await loadMenuFromTemplate(bizType, uid);
     } else {
       const result = await signIn(username, password);
@@ -74,7 +74,7 @@ export default function AuthPage() {
         gstPercent: result.gstPercent ?? 5,
         upiId: result.upiId,
       };
-      setSession(session);
+      await login(session);
       await loadMenuFromTemplate(result.businessType ?? "restaurant", uid);
     }
 
