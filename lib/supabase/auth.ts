@@ -16,8 +16,7 @@ export interface SignUpData {
   businessType: string;
 }
 
-// ── Local auth helpers (used when Supabase not configured) ───────────────────
-const LOCAL_USERS_KEY = "sz_local_users";
+const LOCAL_USERS_KEY = "vynn_local_users";
 
 interface LocalUser {
   username: string;
@@ -31,7 +30,6 @@ interface LocalUser {
 }
 
 function hashPassword(password: string): string {
-  // Simple deterministic hash for local-only mode
   let hash = 0;
   for (let i = 0; i < password.length; i++) {
     const c = password.charCodeAt(i);
@@ -53,11 +51,9 @@ function saveLocalUsers(users: LocalUser[]): void {
   localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
 }
 
-// Signup: creates auth user + profile row with business info
 export async function signUp(data: SignUpData): Promise<AuthResult> {
   const sb = getSupabase();
 
-  // Local-only mode
   if (!sb) {
     const users = getLocalUsers();
     const exists = users.some((u) => u.username === data.username.toLowerCase().trim());
@@ -75,28 +71,30 @@ export async function signUp(data: SignUpData): Promise<AuthResult> {
     return { ok: true };
   }
 
-  const email = `${data.username.toLowerCase().trim()}@servezy.app`;
-  const { data: authData, error } = await sb.auth.signUp({ email, password: data.password });
-  if (error) return { ok: false, error: error.message };
+  const username = data.username.toLowerCase().trim();
+  const email = `${username}@vynn.app`;
 
-  if (authData.user) {
-    const { error: profileError } = await sb.from("profiles").insert({
-      id: authData.user.id,
-      username: data.username.toLowerCase().trim(),
-      role: data.role,
-      business_name: data.businessName.trim(),
-      owner_name: data.ownerName.trim(),
-      business_type: data.businessType,
-      gst_percent: 5,
-      currency_symbol: "₹",
-    });
-    if (profileError) return { ok: false, error: profileError.message };
-  }
+  // Pass all business data as metadata so the DB trigger captures it
+  const { data: authData, error } = await sb.auth.signUp({
+    email,
+    password: data.password,
+    options: {
+      data: {
+        username,
+        business_name: data.businessName.trim(),
+        owner_name: data.ownerName.trim(),
+        business_type: data.businessType,
+        role: data.role,
+      },
+    },
+  });
+
+  if (error) return { ok: false, error: error.message };
+  if (!authData.user) return { ok: false, error: "Signup failed — no user returned" };
 
   return { ok: true };
 }
 
-// Sign in and fetch profile
 export async function signIn(username: string, password: string): Promise<AuthResult & {
   userId?: string;
   role?: UserRole;
@@ -108,7 +106,6 @@ export async function signIn(username: string, password: string): Promise<AuthRe
 }> {
   const sb = getSupabase();
 
-  // Local-only mode
   if (!sb) {
     const users = getLocalUsers();
     const user = users.find((u) => u.username === username.toLowerCase().trim());
@@ -126,7 +123,7 @@ export async function signIn(username: string, password: string): Promise<AuthRe
     };
   }
 
-  const email = `${username.toLowerCase().trim()}@servezy.app`;
+  const email = `${username.toLowerCase().trim()}@vynn.app`;
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if (error) return { ok: false, error: error.message };
 
@@ -161,7 +158,7 @@ export async function signOut(): Promise<void> {
 export async function getCurrentUserId(): Promise<string | null> {
   const sb = getSupabase();
   if (!sb) {
-    const raw = typeof window !== "undefined" ? localStorage.getItem("sz_session") : null;
+    const raw = typeof window !== "undefined" ? localStorage.getItem("vynn_session") : null;
     if (!raw) return null;
     try {
       const s = JSON.parse(raw);
