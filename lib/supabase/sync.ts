@@ -1,5 +1,5 @@
 import { getSupabase, isSupabaseEnabled } from "./client";
-import { dbGetPendingOrders, dbUpdateSyncStatus } from "@/lib/db";
+import { dbGetPendingOrders, dbUpdateSyncStatus, dbGetAllMenuItems, dbGetAllCategories } from "@/lib/db";
 import type { Order } from "@/lib/types";
 
 export async function syncOrder(order: Order): Promise<boolean> {
@@ -16,6 +16,7 @@ export async function syncOrder(order: Order): Promise<boolean> {
       bill_number:          order.billNumber,
       items:                order.items,
       service_mode:         order.serviceMode,
+      table_number:         order.tableNumber ?? null,
       subtotal_paise:       Math.round(order.subtotalPaise),
       discount_paise:       Math.round(order.discountPaise),
       discount_type:        order.discountType,
@@ -39,12 +40,60 @@ export async function syncOrder(order: Order): Promise<boolean> {
   }
 }
 
-export async function backgroundSync(): Promise<void> {
+export async function syncMenuToSupabase(userId: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+
+    const [cats, items] = await Promise.all([
+      dbGetAllCategories(userId),
+      dbGetAllMenuItems(userId),
+    ]);
+
+    if (cats.length > 0) {
+      await sb.from("menu_categories").upsert(
+        cats.map((c) => ({
+          id: c.id,
+          user_id: user.id,
+          name: c.name,
+          sort_order: c.sortOrder,
+        })),
+        { onConflict: "id" }
+      );
+    }
+
+    if (items.length > 0) {
+      await sb.from("menu_items").upsert(
+        items.map((i) => ({
+          id: i.id,
+          user_id: user.id,
+          category_id: i.categoryId,
+          name: i.name,
+          price_paise: i.pricePaise,
+          is_available: i.isAvailable,
+          has_variants: !!(i.portionEnabled && i.portions?.length),
+          variants: i.portions ?? [],
+          addons: i.addOns ?? [],
+          tags: i.isVeg ? ["veg"] : ["non-veg"],
+        })),
+        { onConflict: "id" }
+      );
+    }
+  } catch {
+    // silent — offline first
+  }
+}
+
+export async function backgroundSync(userId?: string): Promise<void> {
   if (!isSupabaseEnabled()) return;
   try {
     const pending = await dbGetPendingOrders();
     for (const order of pending) await syncOrder(order);
+    if (userId) await syncMenuToSupabase(userId);
   } catch {
-    // offline-first — silent
+    // silent
   }
 }
