@@ -37,8 +37,34 @@ const initialState: AppState = {
   toasts: [],
 };
 
+// ── Persist helpers ───────────────────────────────────────────────────────────
+const SESSION_KEY = "sz_session";
+const CART_KEY    = "sz_cart";
+const UI_KEY      = "sz_ui";
+
+function saveSession(s: UserSession | null) {
+  if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+  else    localStorage.removeItem(SESSION_KEY);
+}
+function loadSession(): UserSession | null {
+  try { const r = localStorage.getItem(SESSION_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+function saveCart(cart: CartItem[]) {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+function loadCart(): CartItem[] {
+  try { const r = localStorage.getItem(CART_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function saveUI(ui: { serviceMode: ServiceMode; tableNumber: number | undefined }) {
+  localStorage.setItem(UI_KEY, JSON.stringify(ui));
+}
+function loadUI(): { serviceMode: ServiceMode; tableNumber: number | undefined } {
+  try { const r = localStorage.getItem(UI_KEY); return r ? JSON.parse(r) : { serviceMode: "dine_in", tableNumber: undefined }; } catch { return { serviceMode: "dine_in", tableNumber: undefined }; }
+}
+
+// ── Reducer ───────────────────────────────────────────────────────────────────
 type Action =
-  | { type: "INIT_DONE"; session: UserSession | null; items: MenuItem[]; categories: MenuCategory[]; orders: Order[]; openTables: OpenTable[] }
+  | { type: "INIT_DONE"; session: UserSession | null; items: MenuItem[]; categories: MenuCategory[]; orders: Order[]; openTables: OpenTable[]; cart: CartItem[]; serviceMode: ServiceMode; tableNumber: number | undefined }
   | { type: "SET_SESSION"; payload: UserSession | null }
   | { type: "SET_MENU"; items: MenuItem[]; categories: MenuCategory[] }
   | { type: "SET_SERVICE_MODE"; mode: ServiceMode }
@@ -61,7 +87,7 @@ type Action =
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "INIT_DONE":
-      return { ...state, session: action.session, menuItems: action.items, categories: action.categories, orders: action.orders, openTables: action.openTables, isLoading: false };
+      return { ...state, session: action.session, menuItems: action.items, categories: action.categories, orders: action.orders, openTables: action.openTables, cart: action.cart, serviceMode: action.serviceMode, tableNumber: action.tableNumber, isLoading: false };
     case "SET_SESSION":
       return { ...state, session: action.payload };
     case "SET_MENU":
@@ -117,6 +143,7 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
+// ── Context interface ─────────────────────────────────────────────────────────
 interface AppContextValue {
   state: AppState;
   setSession: (s: UserSession | null) => void;
@@ -141,7 +168,6 @@ interface AppContextValue {
   upsertCategory: (cat: MenuCategory) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   showToast: (message: string, type?: Toast["type"]) => void;
-  // Open table billing
   openTableAddItems: (tableNumber: number, items: CartItem[]) => Promise<OpenTable>;
   closeTable: (tableId: string, params: {
     paymentMethod: Order["paymentMethod"];
@@ -154,16 +180,20 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // ── Boot: restore EVERYTHING from localStorage + IndexedDB ────────────────
   useEffect(() => {
     async function init() {
       try {
-        const raw = localStorage.getItem("sz_session");
-        const session: UserSession | null = raw ? JSON.parse(raw) : null;
+        const session = loadSession();
+        const cart    = loadCart();
+        const ui      = loadUI();
+
         if (!session) {
-          dispatch({ type: "INIT_DONE", session: null, items: [], categories: [], orders: [], openTables: [] });
+          dispatch({ type: "INIT_DONE", session: null, items: [], categories: [], orders: [], openTables: [], cart: [], serviceMode: "dine_in", tableNumber: undefined });
           return;
         }
         const db = await import("@/lib/db");
@@ -174,47 +204,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
           db.dbGetTodaysOrders(uid),
           db.dbGetAllOpenTables(uid),
         ]);
-        dispatch({ type: "INIT_DONE", session, items, categories, orders, openTables });
+        dispatch({ type: "INIT_DONE", session, items, categories, orders, openTables, cart, serviceMode: ui.serviceMode, tableNumber: ui.tableNumber });
         import("@/lib/supabase/sync").then(({ backgroundSync }) => backgroundSync(uid)).catch(() => {});
       } catch {
-        dispatch({ type: "INIT_DONE", session: null, items: [], categories: [], orders: [], openTables: [] });
+        dispatch({ type: "INIT_DONE", session: null, items: [], categories: [], orders: [], openTables: [], cart: [], serviceMode: "dine_in", tableNumber: undefined });
       }
     }
     init();
   }, []);
 
+  // ── Auto-persist cart whenever it changes ────────────────────────────────
+  useEffect(() => {
+    if (!state.isLoading) saveCart(state.cart);
+  }, [state.cart, state.isLoading]);
+
+  // ── Auto-persist UI state (serviceMode, tableNumber) ────────────────────
+  useEffect(() => {
+    if (!state.isLoading) saveUI({ serviceMode: state.serviceMode, tableNumber: state.tableNumber });
+  }, [state.serviceMode, state.tableNumber, state.isLoading]);
+
+  // ── Auto-persist session whenever it changes (catches all settings saves) ─
+  useEffect(() => {
+    if (!state.isLoading) saveSession(state.session);
+  }, [state.session, state.isLoading]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
   const login = useCallback(async (session: UserSession) => {
-    localStorage.setItem("sz_session", JSON.stringify(session));
+    saveSession(session);
     try {
       const db = await import("@/lib/db");
       const uid = session.userId;
+      const cart = loadCart();
+      const ui   = loadUI();
       const [items, categories, orders, openTables] = await Promise.all([
         db.dbGetAllMenuItems(uid),
         db.dbGetAllCategories(uid),
         db.dbGetTodaysOrders(uid),
         db.dbGetAllOpenTables(uid),
       ]);
-      dispatch({ type: "INIT_DONE", session, items, categories, orders, openTables });
+      dispatch({ type: "INIT_DONE", session, items, categories, orders, openTables, cart, serviceMode: ui.serviceMode, tableNumber: ui.tableNumber });
       import("@/lib/supabase/sync").then(({ backgroundSync }) => backgroundSync(uid)).catch(() => {});
     } catch {
-      dispatch({ type: "INIT_DONE", session, items: [], categories: [], orders: [], openTables: [] });
+      dispatch({ type: "INIT_DONE", session, items: [], categories: [], orders: [], openTables: [], cart: [], serviceMode: "dine_in", tableNumber: undefined });
     }
   }, []);
 
   const logout = useCallback(async () => {
-    localStorage.removeItem("sz_session");
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(CART_KEY);
+    localStorage.removeItem(UI_KEY);
     try { const { signOut } = await import("@/lib/supabase/auth"); await signOut(); } catch {}
     dispatch({ type: "LOGOUT" });
   }, []);
 
+  // setSession: now just dispatches — the useEffect above auto-saves to localStorage
   const setSession = useCallback((s: UserSession | null) => {
-    if (s) localStorage.setItem("sz_session", JSON.stringify(s));
-    else localStorage.removeItem("sz_session");
     dispatch({ type: "SET_SESSION", payload: s });
   }, []);
 
-  const setServiceMode = useCallback((mode: ServiceMode) => dispatch({ type: "SET_SERVICE_MODE", mode }), []);
-  const setTableNumber = useCallback((tableNumber: number | undefined) => dispatch({ type: "SET_TABLE", tableNumber }), []);
+  const setServiceMode = useCallback((mode: ServiceMode) => {
+    dispatch({ type: "SET_SERVICE_MODE", mode });
+  }, []);
+
+  const setTableNumber = useCallback((tableNumber: number | undefined) => {
+    dispatch({ type: "SET_TABLE", tableNumber });
+  }, []);
 
   const loadMenuFromTemplate = useCallback(async (businessType: string, userId: string) => {
     const db = await import("@/lib/db");
@@ -227,10 +281,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_MENU", items: template.items, categories: template.categories });
   }, []);
 
-  const addToCart = useCallback((item: CartItem) => dispatch({ type: "CART_ADD", payload: item }), []);
+  const addToCart     = useCallback((item: CartItem) => dispatch({ type: "CART_ADD", payload: item }), []);
   const updateCartQty = useCallback((cartId: string, qty: number) => dispatch({ type: "CART_QTY", cartId, qty }), []);
-  const removeFromCart = useCallback((cartId: string) => dispatch({ type: "CART_REMOVE", cartId }), []);
-  const clearCart = useCallback(() => dispatch({ type: "CART_CLEAR" }), []);
+  const removeFromCart= useCallback((cartId: string) => dispatch({ type: "CART_REMOVE", cartId }), []);
+  const clearCart     = useCallback(() => dispatch({ type: "CART_CLEAR" }), []);
 
   const placeOrder = useCallback(async (params: {
     paymentMethod: Order["paymentMethod"];
@@ -249,7 +303,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const discountPaise = calcDiscount(subtotalPaise, discountType, discountValue);
     const afterDiscount = Math.max(0, subtotalPaise - discountPaise);
     const gstPercent = state.session?.gstPercent ?? 0;
-    const gstPaise = calcGST(afterDiscount, gstPercent);
+    const gstPaise   = calcGST(afterDiscount, gstPercent);
     const totalPaise = afterDiscount + gstPaise;
     const changePaise = cashReceivedPaise ? Math.max(0, cashReceivedPaise - totalPaise) : 0;
     const order: Order = {
@@ -268,7 +322,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return order;
   }, [state.cart, state.session, state.serviceMode, state.tableNumber]);
 
-  // ── Open Table Billing ────────────────────────────────────────────────────
   const openTableAddItems = useCallback(async (tableNumber: number, items: CartItem[]): Promise<OpenTable> => {
     const uid = state.session?.userId ?? "default";
     const db = await import("@/lib/db");
@@ -299,7 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const discountPaise = calcDiscount(subtotalPaise, discountType, discountValue);
     const afterDiscount = Math.max(0, subtotalPaise - discountPaise);
     const gstPercent = state.session?.gstPercent ?? 0;
-    const gstPaise = calcGST(afterDiscount, gstPercent);
+    const gstPaise   = calcGST(afterDiscount, gstPercent);
     const totalPaise = afterDiscount + gstPaise;
     const changePaise = cashReceivedPaise ? Math.max(0, cashReceivedPaise - totalPaise) : 0;
     const order: Order = {
