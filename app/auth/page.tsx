@@ -11,27 +11,89 @@ import type { UserRole, BusinessType } from "@/lib/types";
 type Mode = "signin" | "signup";
 
 const BIZ_TYPES = [
-  { value: "cafe", label: "Cafe" },
-  { value: "restaurant", label: "Restaurant" },
-  { value: "food_truck", label: "Food Truck" },
-  { value: "kiosk", label: "Kiosk" },
-  { value: "bakery", label: "Bakery" },
-  { value: "franchise", label: "Franchise" },
+  { value: "cafe",        label: "Cafe"        },
+  { value: "restaurant",  label: "Restaurant"  },
+  { value: "food_truck",  label: "Food Truck"  },
+  { value: "kiosk",       label: "Kiosk"       },
+  { value: "bakery",      label: "Bakery"      },
+  { value: "franchise",   label: "Franchise"   },
 ].filter((b) => !(HIDE_FRANCHISE && b.value === "franchise"));
+
+function VynnHex() {
+  return (
+    <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" width={40} height={46}>
+      <polygon points="22,3 41,13 41,39 22,49 3,39 3,13" stroke="#D97C5A" strokeWidth="1.4" fill="none"/>
+      <line x1="22" y1="0" x2="22" y2="52" stroke="#D97C5A" strokeWidth="2"/>
+      <line x1="10" y1="26" x2="34" y2="26" stroke="#D97C5A" strokeWidth="0.7" opacity="0.35"/>
+    </svg>
+  );
+}
+
+const ink  = "#1C1410";
+const ink2 = "#5C4E47";
+const ink3 = "#9C8E87";
+const tc600 = "#B24B2F";
+const tc400 = "#D97C5A";
+const tc50  = "#FAF0EB";
+const sand  = "#FAF6F2";
+const sand2 = "#F3EDE6";
+
+function Field({
+  icon, placeholder, value, onChange, type = "text", right, onKeyDown,
+}: {
+  icon: React.ReactNode; placeholder: string; value: string;
+  onChange: (v: string) => void; type?: string;
+  right?: React.ReactNode; onKeyDown?: (e: React.KeyboardEvent) => void;
+}) {
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: ink3, pointerEvents: "none", display: "flex" }}>
+        {icon}
+      </div>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        autoCapitalize="none"
+        autoCorrect="off"
+        style={{
+          width: "100%", height: 48,
+          paddingLeft: 42, paddingRight: right ? 44 : 14,
+          borderRadius: 10,
+          border: `1px solid ${sand2}`,
+          background: sand,
+          fontSize: 14,
+          color: ink,
+          outline: "none",
+          fontFamily: "inherit",
+        }}
+        onFocus={(e) => { e.target.style.border = `1.5px solid ${tc400}`; e.target.style.background = "white"; }}
+        onBlur={(e)  => { e.target.style.border = `1px solid ${sand2}`;  e.target.style.background = sand; }}
+      />
+      {right && (
+        <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", display: "flex" }}>
+          {right}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AuthPage() {
   const router = useRouter();
   const { login, loadMenuFromTemplate } = useApp();
-  const [mode, setMode] = useState<Mode>("signin");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const [role, setRole] = useState<UserRole>("owner");
+  const [mode, setMode]               = useState<Mode>("signin");
+  const [username, setUsername]       = useState("");
+  const [password, setPassword]       = useState("");
+  const [showPwd, setShowPwd]         = useState(false);
+  const [role, setRole]               = useState<UserRole>("owner");
   const [businessName, setBusinessName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [bizType, setBizType] = useState("restaurant");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [ownerName, setOwnerName]     = useState("");
+  const [bizType, setBizType]         = useState("restaurant");
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
 
   const handleSubmit = async () => {
     setError("");
@@ -51,110 +113,250 @@ export default function AuthPage() {
       const loginResult = await signIn(username, password);
       if (!loginResult.ok) { setError("Signed up! Please sign in."); setLoading(false); setMode("signin"); return; }
       const uid = loginResult.userId ?? `local_${username}`;
-      const session = {
-        userId: uid,
-        username,
-        role,
-        businessName,
-        businessType: bizType as BusinessType,
-        gstPercent: 5,
-      };
-      await login(session);
+      await login({ userId: uid, username, role, businessName, businessType: bizType as BusinessType, gstPercent: 5 });
       await loadMenuFromTemplate(bizType, uid);
     } else {
       const result = await signIn(username, password);
       if (!result.ok) { setError(result.error ?? "Sign in failed"); setLoading(false); return; }
       const uid = result.userId ?? `local_${username}`;
-      const session = {
-        userId: uid,
-        username,
+      await login({
+        userId: uid, username,
         role: result.role ?? "cashier" as UserRole,
         businessName: result.businessName ?? "",
         businessType: (result.businessType ?? "restaurant") as BusinessType,
         gstPercent: result.gstPercent ?? 5,
         upiId: result.upiId,
-      };
-      await login(session);
+      });
       await loadMenuFromTemplate(result.businessType ?? "restaurant", uid);
     }
-
     router.replace("/pos");
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5 py-10">
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 rounded-3xl bg-primary-500 flex items-center justify-center shadow-lg mb-3">
-          <span className="text-white text-3xl font-black">V</span>
+    <div style={{ minHeight: "100vh", background: "#1C1410", display: "flex" }}>
+
+      {/* ── Left panel — brand (desktop only) ── */}
+      <div style={{
+        display: "none",
+        width: 340, flexShrink: 0,
+        background: "#161008",
+        borderRight: "0.5px solid rgba(255,255,255,0.06)",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "48px 40px",
+      }}
+        className="auth-left"
+      >
+        <div>
+          <VynnHex />
+          <div style={{ marginTop: 16, fontSize: 18, letterSpacing: "0.2em", color: tc400, fontWeight: 300 }}>VYNN</div>
+          <div style={{ fontSize: 9, letterSpacing: "0.18em", color: "rgba(217,124,90,0.4)", fontWeight: 300, marginTop: 3 }}>SMART POS</div>
         </div>
-        <h1 className="text-2xl font-black text-gray-900">Vynn</h1>
-        <p className="text-sm text-gray-400 font-medium mt-0.5">Smart POS for Indian F&amp;B</p>
+        <div>
+          <p style={{ fontSize: 22, fontWeight: 300, color: "white", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
+            Built for<br/>Indian F&amp;B<br/>businesses.
+          </p>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 16, lineHeight: 1.7 }}>
+            Fast · Offline-first · GST-ready
+          </p>
+        </div>
       </div>
 
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-        <div className="flex rounded-2xl bg-gray-100 p-1 mb-5">
-          {(["signin", "signup"] as Mode[]).map((m) => (
-            <button key={m} onClick={() => { setMode(m); setError(""); }}
-              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${mode === m ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"}`}>
-              {m === "signin" ? "Sign In" : "Create Account"}
-            </button>
-          ))}
+      {/* ── Right panel — form ── */}
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        padding: "40px 20px", overflowY: "auto",
+      }}>
+
+        {/* Mobile logo */}
+        <div style={{ marginBottom: 32, display: "flex", flexDirection: "column", alignItems: "center" }} className="auth-mobile-logo">
+          <VynnHex />
+          <div style={{ marginTop: 10, fontSize: 14, letterSpacing: "0.2em", color: tc400, fontWeight: 300 }}>VYNN</div>
+          <div style={{ fontSize: 9, letterSpacing: "0.16em", color: "rgba(217,124,90,0.4)", marginTop: 2 }}>SMART POS</div>
         </div>
 
-        <div className="space-y-3 mb-4">
-          <div className="relative">
-            <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input className="bm-input pl-10 border-2" placeholder="Username" value={username}
-              onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" />
-          </div>
-          <div className="relative">
-            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input className="bm-input pl-10 pr-11 border-2" placeholder="Password"
-              type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()} />
-            <button onClick={() => setShowPwd((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-              {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+        {/* Card */}
+        <div style={{
+          width: "100%", maxWidth: 400,
+          background: "white",
+          borderRadius: 16,
+          border: `0.5px solid ${sand2}`,
+          overflow: "hidden",
+        }}>
+
+          {/* Tab switcher */}
+          <div style={{ display: "flex", borderBottom: `0.5px solid ${sand2}` }}>
+            {(["signin", "signup"] as Mode[]).map((m) => (
+              <button key={m}
+                onClick={() => { setMode(m); setError(""); }}
+                style={{
+                  flex: 1, padding: "16px 0",
+                  fontSize: 13, fontWeight: 500,
+                  letterSpacing: "0.04em",
+                  background: "none", border: "none", cursor: "pointer",
+                  fontFamily: "inherit",
+                  color: mode === m ? tc600 : ink3,
+                  borderBottom: mode === m ? `2px solid ${tc600}` : "2px solid transparent",
+                  transition: "all 0.15s",
+                  marginBottom: -1,
+                }}
+              >
+                {m === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}
+              </button>
+            ))}
           </div>
 
-          {mode === "signup" && (
-            <>
-              <input className="bm-input border-2" placeholder="Business Name *" value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)} />
-              <input className="bm-input border-2" placeholder="Owner Name" value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)} />
-              <div className="relative">
-                <Store size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <select className="bm-input pl-10 border-2 appearance-none" value={bizType} onChange={(e) => setBizType(e.target.value)}>
-                  {BIZ_TYPES.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          {/* Form body */}
+          <div style={{ padding: "28px 28px 32px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+
+              <Field
+                icon={<User size={15}/>}
+                placeholder="Username"
+                value={username}
+                onChange={setUsername}
+              />
+
+              <Field
+                icon={<Lock size={15}/>}
+                placeholder="Password"
+                value={password}
+                onChange={setPassword}
+                type={showPwd ? "text" : "password"}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                right={
+                  <button onClick={() => setShowPwd((p) => !p)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: ink3, display: "flex", padding: 0 }}>
+                    {showPwd ? <EyeOff size={15}/> : <Eye size={15}/>}
+                  </button>
+                }
+              />
+
+              {mode === "signup" && (
+                <>
+                  <Field
+                    icon={<Store size={15}/>}
+                    placeholder="Business Name *"
+                    value={businessName}
+                    onChange={setBusinessName}
+                  />
+
+                  <Field
+                    icon={<User size={15}/>}
+                    placeholder="Owner Name"
+                    value={ownerName}
+                    onChange={setOwnerName}
+                  />
+
+                  {/* Business type select */}
+                  <div style={{ position: "relative" }}>
+                    <Store size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: ink3, pointerEvents: "none" }}/>
+                    <select
+                      value={bizType}
+                      onChange={(e) => setBizType(e.target.value)}
+                      style={{
+                        width: "100%", height: 48,
+                        paddingLeft: 42, paddingRight: 36,
+                        borderRadius: 10,
+                        border: `1px solid ${sand2}`,
+                        background: sand,
+                        fontSize: 14, color: ink,
+                        outline: "none",
+                        appearance: "none",
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {BIZ_TYPES.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+                    </select>
+                    <ChevronDown size={15} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: ink3, pointerEvents: "none" }}/>
+                  </div>
+
+                  {/* Role pills */}
+                  <div>
+                    <p style={{ fontSize: 10, letterSpacing: "0.1em", color: ink3, marginBottom: 8 }}>ROLE</p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {(["owner", "cashier"] as UserRole[]).map((r) => (
+                        <button key={r} onClick={() => setRole(r)}
+                          style={{
+                            flex: 1, padding: "10px 0",
+                            borderRadius: 8, fontSize: 12,
+                            fontWeight: 500, letterSpacing: "0.06em",
+                            textTransform: "capitalize",
+                            cursor: "pointer", fontFamily: "inherit",
+                            border: `1px solid ${role === r ? tc600 : sand2}`,
+                            color: role === r ? tc600 : ink3,
+                            background: role === r ? tc50 : "white",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{
+                fontSize: 12, color: tc600,
+                background: tc50, borderRadius: 8,
+                padding: "10px 14px", marginBottom: 16,
+                border: `0.5px solid rgba(178,75,47,0.2)`,
+              }}>
+                {error}
               </div>
-              <div>
-                <p className="text-xs font-bold text-gray-500 mb-2">Role</p>
-                <div className="flex gap-2">
-                  {(["owner", "cashier"] as UserRole[]).map((r) => (
-                    <button key={r} onClick={() => setRole(r)}
-                      className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold capitalize transition-all ${role === r ? "border-primary-500 bg-primary-50 text-primary-600" : "border-gray-200 text-gray-500"}`}>
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+            )}
+
+            {/* Submit */}
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              style={{
+                width: "100%", height: 48,
+                background: ink, color: "white",
+                border: "none", borderRadius: 10,
+                fontSize: 13, fontWeight: 500,
+                letterSpacing: "0.08em",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                fontFamily: "inherit",
+                transition: "opacity 0.15s",
+              }}
+            >
+              {loading && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }}/>}
+              {mode === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}
+            </button>
+
+            {/* Toggle hint */}
+            <p style={{ textAlign: "center", fontSize: 12, color: ink3, marginTop: 20 }}>
+              {mode === "signin" ? "New here? " : "Already have an account? "}
+              <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: tc600, fontSize: 12, fontFamily: "inherit", fontWeight: 500 }}>
+                {mode === "signin" ? "Create account" : "Sign in"}
+              </button>
+            </p>
+          </div>
         </div>
 
-        {error && (
-          <div className="text-sm text-red-500 font-semibold bg-red-50 rounded-xl px-3 py-2 mb-4">{error}</div>
-        )}
-
-        <button onClick={handleSubmit} disabled={loading}
-          className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold press shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
-          {loading && <Loader2 size={16} className="animate-spin" />}
-          {mode === "signin" ? "Sign In" : "Create Account"}
-        </button>
+        {/* Footer */}
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 32, letterSpacing: "0.06em" }}>
+          VYNN · SMART POS
+        </p>
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (min-width: 768px) {
+          .auth-left { display: flex !important; }
+          .auth-mobile-logo { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
