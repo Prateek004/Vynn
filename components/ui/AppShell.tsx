@@ -5,6 +5,20 @@ import { useApp } from "@/lib/store/AppContext";
 import DesktopSidebar from "./DesktopSidebar";
 import BottomNav from "./BottomNav";
 
+function LoadingScreen() {
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#1C1410", gap: 24 }}>
+      <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg" width={48} height={56}
+        style={{ animation: "vynn-pulse 1.8s ease-in-out infinite" }}>
+        <polygon points="22,3 41,13 41,39 22,49 3,39 3,13" stroke="#D97C5A" strokeWidth="1.4" fill="none"/>
+        <line x1="22" y1="0" x2="22" y2="52" stroke="#D97C5A" strokeWidth="2"/>
+        <line x1="10" y1="26" x2="34" y2="26" stroke="#D97C5A" strokeWidth="0.7" opacity="0.35"/>
+      </svg>
+      <div style={{ fontSize: 11, letterSpacing: "0.24em", color: "rgba(217,124,90,0.5)", fontWeight: 300 }}>VYNN</div>
+    </div>
+  );
+}
+
 export default function AppShell({ children }: { children: ReactNode }) {
   const { state } = useApp();
   const router = useRouter();
@@ -13,17 +27,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     if (!state.isLoading && !state.session) router.replace("/auth");
   }, [state.isLoading, state.session, router]);
 
-  if (state.isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="w-2 h-2 rounded-full bg-primary-300 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (state.isLoading) return <LoadingScreen />;
 
   return (
     <div className="flex h-screen overflow-hidden">
