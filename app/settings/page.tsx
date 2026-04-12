@@ -1,16 +1,16 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/store/AppContext";
 import AppShell from "@/components/ui/AppShell";
-import { Cloud, CloudOff, LogOut, Trash2 } from "lucide-react";
+import { Cloud, CloudOff, LogOut, Trash2, Save } from "lucide-react";
 import { isSupabaseEnabled } from "@/lib/supabase/client";
 import { HIDE_FRANCHISE } from "@/lib/utils";
 import type { StockSettings } from "@/lib/types";
 
 const GST_OPTIONS = [0, 5, 12, 18];
 const BAR_BIZ_TYPES = ["cafe", "restaurant", "franchise"].filter((t) => !HIDE_FRANCHISE || t !== "franchise");
-const OPEN_TABLE_BIZ_TYPES = ["cafe", "restaurant"]; // only these get open table billing
+const OPEN_TABLE_BIZ_TYPES = ["cafe", "restaurant"];
 
 export default function SettingsPage() {
   const { state, setSession, logout, showToast } = useApp();
@@ -20,39 +20,56 @@ export default function SettingsPage() {
   const showBarToggle = BAR_BIZ_TYPES.includes(session?.businessType ?? "");
   const showOpenTableToggle = OPEN_TABLE_BIZ_TYPES.includes(session?.businessType ?? "");
 
-  const [gst, setGst] = useState(session?.gstPercent ?? 5);
-  const [upiId, setUpiId] = useState(session?.upiId ?? "");
-  const [saving, setSaving] = useState(false);
-
   const ss: StockSettings = session?.stockSettings ?? {
-    tablesEnabled: false,
-    kotEnabled: false,
-    barEnabled: false,
-    tableCount: 10,
-    openTableBilling: false,
+    tablesEnabled: false, kotEnabled: false, barEnabled: false,
+    tableCount: 10, openTableBilling: false,
   };
-  const [tablesEnabled, setTablesEnabled] = useState(ss.tablesEnabled);
-  const [kotEnabled, setKotEnabled] = useState(ss.kotEnabled);
-  const [barEnabled, setBarEnabled] = useState(ss.barEnabled);
-  const [tableCount, setTableCount] = useState(ss.tableCount);
-  const [openTableBilling, setOpenTableBilling] = useState(ss.openTableBilling ?? false);
 
+  const [gst, setGst]                       = useState(session?.gstPercent ?? 5);
+  const [upiId, setUpiId]                   = useState(session?.upiId ?? "");
+  const [tablesEnabled, setTablesEnabled]   = useState(ss.tablesEnabled);
+  const [kotEnabled, setKotEnabled]         = useState(ss.kotEnabled);
+  const [barEnabled, setBarEnabled]         = useState(ss.barEnabled);
+  const [tableCount, setTableCount]         = useState(ss.tableCount);
+  const [openTableBilling, setOpenTableBilling] = useState(ss.openTableBilling ?? false);
+  const [saving, setSaving]                 = useState(false);
+
+  // Keep local state in sync if session changes externally
+  useEffect(() => {
+    if (!session) return;
+    const s = session.stockSettings;
+    setGst(session.gstPercent);
+    setUpiId(session.upiId ?? "");
+    if (s) {
+      setTablesEnabled(s.tablesEnabled);
+      setKotEnabled(s.kotEnabled);
+      setBarEnabled(s.barEnabled);
+      setTableCount(s.tableCount);
+      setOpenTableBilling(s.openTableBilling ?? false);
+    }
+  }, [session?.userId]); // only re-sync when user changes, not on every save
+
+  // ── Save: just calls setSession — AppContext auto-persists via useEffect ──
   const handleSave = async () => {
     if (!session) return;
     setSaving(true);
-    const stockSettings: StockSettings = { tablesEnabled, kotEnabled, barEnabled, tableCount, openTableBilling };
+    const stockSettings: StockSettings = {
+      tablesEnabled, kotEnabled, barEnabled, tableCount, openTableBilling,
+    };
     const updated = { ...session, gstPercent: gst, upiId: upiId.trim() || undefined, stockSettings };
-    localStorage.setItem("sz_session", JSON.stringify(updated));
-    setSession(updated);
+    setSession(updated); // AppContext's useEffect auto-saves to localStorage
 
+    // Optional Supabase sync
     if (isSupabaseEnabled()) {
-      const sb = await import("@/lib/supabase/client").then((m) => m.getSupabase());
-      if (sb) {
-        const { data: { user } } = await sb.auth.getUser();
-        if (user) {
-          await sb.from("profiles").update({ gst_percent: gst, upi_id: upiId.trim() || null }).eq("id", user.id);
+      try {
+        const sb = await import("@/lib/supabase/client").then((m) => m.getSupabase());
+        if (sb) {
+          const { data: { user } } = await sb.auth.getUser();
+          if (user) {
+            await sb.from("profiles").update({ gst_percent: gst, upi_id: upiId.trim() || null }).eq("id", user.id);
+          }
         }
-      }
+      } catch {}
     }
     showToast("Settings saved ✓");
     setSaving(false);
@@ -73,17 +90,19 @@ export default function SettingsPage() {
   return (
     <AppShell>
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <div className="bg-white px-4 pt-12 pb-4 shadow-sm">
+        <div className="bg-white px-4 pt-12 lg:pt-5 pb-4 shadow-sm">
           <h1 className="text-xl font-black text-gray-900">Settings</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Changes save to your device instantly</p>
         </div>
 
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+
           <Section title="Account">
             <div className="px-4 py-3 space-y-1">
-              <Row label="Username" value={session?.username ?? "—"} />
-              <Row label="Role" value={session?.role ?? "—"} />
-              <Row label="Business" value={session?.businessName ?? "—"} />
-              <Row label="Type" value={session?.businessType ?? "—"} />
+              <Row label="Username"  value={session?.username ?? "—"} />
+              <Row label="Role"      value={session?.role ?? "—"} />
+              <Row label="Business"  value={session?.businessName ?? "—"} />
+              <Row label="Type"      value={session?.businessType ?? "—"} />
             </div>
           </Section>
 
@@ -99,7 +118,8 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className="text-sm font-bold text-gray-700 mb-1">UPI ID</p>
-              <input className="bm-input" placeholder="e.g. 9876543210@upi" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+              <input className="bm-input" placeholder="e.g. 9876543210@upi"
+                value={upiId} onChange={(e) => setUpiId(e.target.value)} />
               <p className="text-xs text-gray-400 mt-1">Used to generate QR code at checkout</p>
             </div>
           </Section>
@@ -107,7 +127,8 @@ export default function SettingsPage() {
           {isOwner && (
             <Section title="POS Features">
               <div className="px-4 py-3 space-y-4">
-                <Toggle label="Table Management" desc="Enable table selection in billing" value={tablesEnabled} onChange={setTablesEnabled} />
+                <Toggle label="Table Management" desc="Enable table selection in billing"
+                  value={tablesEnabled} onChange={setTablesEnabled} />
                 {tablesEnabled && (
                   <div className="pl-2">
                     <p className="text-xs font-bold text-gray-500 mb-1">Number of Tables</p>
@@ -122,20 +143,20 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <Toggle label="KOT (Kitchen Order Ticket)" desc="Print kitchen tickets with orders" value={kotEnabled} onChange={setKotEnabled} />
+                <Toggle label="KOT (Kitchen Order Ticket)" desc="Print kitchen tickets with orders"
+                  value={kotEnabled} onChange={setKotEnabled} />
 
                 {showOpenTableToggle && (
                   <>
                     <div className="h-px bg-gray-100" />
                     <Toggle
                       label="Open Table Billing"
-                      desc="Keep a table's bill open — add items across multiple rounds, pay once at the end"
-                      value={openTableBilling}
-                      onChange={setOpenTableBilling}
+                      desc="Keep a table bill open — add items across multiple rounds, pay once at the end"
+                      value={openTableBilling} onChange={setOpenTableBilling}
                     />
                     {openTableBilling && (
                       <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
-                        Open Table Billing is active. Go to Orders → Open Tables to manage running tabs.
+                        Active — go to Orders → Open Tables to manage running tabs.
                       </p>
                     )}
                   </>
@@ -144,7 +165,8 @@ export default function SettingsPage() {
                 {showBarToggle && (
                   <>
                     <div className="h-px bg-gray-100" />
-                    <Toggle label="Bar Tab" desc="Enable bar section in Stock management" value={barEnabled} onChange={setBarEnabled} />
+                    <Toggle label="Bar Tab" desc="Enable bar section in Stock management"
+                      value={barEnabled} onChange={setBarEnabled} />
                     {barEnabled && (
                       <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
                         Bar tab is active. Go to Stock → Bar to manage bar inventory.
@@ -193,7 +215,8 @@ export default function SettingsPage() {
           </Section>
 
           <button onClick={handleSave} disabled={saving}
-            className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold disabled:opacity-40 press shadow-md">
+            className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold disabled:opacity-40 press shadow-md flex items-center justify-center gap-2">
+            <Save size={16} />
             {saving ? "Saving…" : "Save Settings"}
           </button>
 
@@ -211,6 +234,7 @@ export default function SettingsPage() {
               </div>
             </button>
           </Section>
+
         </div>
       </div>
     </AppShell>
@@ -242,7 +266,8 @@ function Toggle({ label, desc, value, onChange }: { label: string; desc?: string
         <p className="text-sm font-semibold text-gray-700">{label}</p>
         {desc && <p className="text-xs text-gray-400">{desc}</p>}
       </div>
-      <button onClick={() => onChange(!value)} className={`shrink-0 w-11 h-6 rounded-full relative transition-colors press ${value ? "bg-primary-500" : "bg-gray-200"}`}>
+      <button onClick={() => onChange(!value)}
+        className={`shrink-0 w-11 h-6 rounded-full relative transition-colors press ${value ? "bg-primary-500" : "bg-gray-200"}`}>
         <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${value ? "left-6" : "left-1"}`} />
       </button>
     </div>
