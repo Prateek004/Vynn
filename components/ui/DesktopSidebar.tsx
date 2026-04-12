@@ -3,19 +3,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ShoppingCart, ClipboardList, UtensilsCrossed,
-  BarChart2, Settings, LogOut, Package, LayoutDashboard,
+  BarChart2, Settings, LogOut, LayoutDashboard,
 } from "lucide-react";
 import { useApp } from "@/lib/store/AppContext";
 import { signOut } from "@/lib/supabase/auth";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard",  Icon: LayoutDashboard },
-  { href: "/pos",       label: "Register",   Icon: ShoppingCart    },
-  { href: "/orders",    label: "Orders",     Icon: ClipboardList   },
-  { href: "/menu",      label: "Menu",       Icon: UtensilsCrossed },
-  { href: "/stock",     label: "Stock",      Icon: Package         },
-  { href: "/stats",     label: "Stats",      Icon: BarChart2       },
-  { href: "/settings",  label: "Settings",   Icon: Settings        },
+  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/pos",       label: "Register",  Icon: ShoppingCart    },
+  { href: "/orders",    label: "Orders",    Icon: ClipboardList   },
+  { href: "/menu",      label: "Menu",      Icon: UtensilsCrossed },
+  { href: "/stats",     label: "Stats",     Icon: BarChart2       },
+  { href: "/settings",  label: "Settings",  Icon: Settings        },
 ];
 
 function VynnLogo() {
@@ -92,7 +91,10 @@ export default function DesktopSidebar() {
               {state.session?.role ?? "owner"}
             </p>
           </div>
-          <button onClick={handleLogout} title="Sign out" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 4, display: "flex" }}>
+          <button onClick={handleLogout} title="Sign out" style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "rgba(255,255,255,0.3)", padding: 4, display: "flex",
+          }}>
             <LogOut size={15} />
           </button>
         </div>
