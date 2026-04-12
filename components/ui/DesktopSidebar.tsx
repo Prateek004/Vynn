@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ShoppingCart, ClipboardList, UtensilsCrossed,
-  BarChart2, Settings, LogOut, LayoutDashboard,
+  Settings, LogOut, Package, LayoutDashboard,
 } from "lucide-react";
 import { useApp } from "@/lib/store/AppContext";
 import { signOut } from "@/lib/supabase/auth";
@@ -13,7 +13,7 @@ const NAV = [
   { href: "/pos",       label: "Register",  Icon: ShoppingCart    },
   { href: "/orders",    label: "Orders",    Icon: ClipboardList   },
   { href: "/menu",      label: "Menu",      Icon: UtensilsCrossed },
-  { href: "/stats",     label: "Stats",     Icon: BarChart2       },
+  { href: "/stock",     label: "Stock",     Icon: Package         },
   { href: "/settings",  label: "Settings",  Icon: Settings        },
 ];
 
