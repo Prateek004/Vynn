@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Order, MenuItem, MenuCategory, RawMaterial, FinishedGood } from "@/lib/types";
+import type { Order, MenuItem, MenuCategory, RawMaterial, FinishedGood, OpenTable } from "@/lib/types";
 
 type WithUid<T> = T & { _uid: string };
 
@@ -10,6 +10,7 @@ class ServezyDB extends Dexie {
   rawMaterials!: Table<WithUid<RawMaterial>, string>;
   finishedGoods!: Table<WithUid<FinishedGood>, string>;
   barItems!: Table<WithUid<FinishedGood>, string>;
+  openTables!: Table<WithUid<OpenTable>, string>;
 
   constructor() {
     super("servezy_db");
@@ -23,6 +24,15 @@ class ServezyDB extends Dexie {
       rawMaterials:  "id, _uid, name",
       finishedGoods: "id, _uid, name, expiryDate",
       barItems:      "id, _uid, name, expiryDate",
+    });
+    this.version(5).stores({
+      orders:        "id, _uid, createdAt, syncStatus",
+      menuItems:     "id, _uid, categoryId",
+      categories:    "id, _uid, sortOrder",
+      rawMaterials:  "id, _uid, name",
+      finishedGoods: "id, _uid, name, expiryDate",
+      barItems:      "id, _uid, name, expiryDate",
+      openTables:    "id, _uid, tableNumber",
     });
   }
 }
@@ -118,4 +128,16 @@ export async function dbDeleteBarItem(id: string, uid: string): Promise<void> {
 }
 export async function dbGetAllBarItems(uid: string): Promise<FinishedGood[]> {
   return getDB().barItems.where("_uid").equals(uid).toArray() as unknown as FinishedGood[];
+}
+
+// ── Open Tables ───────────────────────────────────────────────────────────────
+export async function dbSaveOpenTable(tab: OpenTable, uid: string): Promise<void> {
+  await getDB().openTables.put({ ...tab, _uid: uid });
+}
+export async function dbGetAllOpenTables(uid: string): Promise<OpenTable[]> {
+  return getDB().openTables.where("_uid").equals(uid).toArray() as unknown as OpenTable[];
+}
+export async function dbDeleteOpenTable(id: string, uid: string): Promise<void> {
+  const rec = await getDB().openTables.get(id);
+  if (rec && rec._uid === uid) await getDB().openTables.delete(id);
 }
