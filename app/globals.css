@@ -7,18 +7,24 @@
   box-sizing: border-box;
 }
 
-html, body {
-  overscroll-behavior: none;
+html, body { overscroll-behavior: none; }
+
+:root {
+  --tc-600: #B24B2F;
+  --tc-400: #D97C5A;
+  --tc-50:  #FAF0EB;
+  --sand:   #FAF6F2;
+  --sand2:  #F3EDE6;
+  --ink:    #1C1410;
+  --ink2:   #5C4E47;
+  --ink3:   #9C8E87;
 }
 
-/* Hide scrollbars on scroll containers */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Tap feedback */
 .press:active { transform: scale(0.96); transition: transform 0.08s ease; }
 
-/* Animations */
 @keyframes slide-up {
   from { transform: translateY(100%); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
@@ -44,33 +50,32 @@ html, body {
 }
 .badge-pop { animation: badge-pop 0.2s ease; }
 
-/* Remove number input spinners */
+@keyframes vynn-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1;   }
+}
+
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 input[type="number"] { -moz-appearance: textfield; }
 
-/* Shared input style */
 .bm-input {
   @apply w-full h-11 px-3 rounded-xl border-2 border-gray-200 text-sm font-medium outline-none bg-white;
   @apply focus:border-primary-500 transition-colors;
 }
 
-/* Safe area for notched phones */
 .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px); }
 
-/* ── Thermal invoice print styles ─────────────────────────────────────────── */
 @media print {
   body { background: white; }
   .no-print { display: none !important; }
 }
 
-/* Thermal receipt helpers (used in invoice component) */
-.c  { text-align: center; }
-.b  { font-weight: bold; }
-.lg { font-size: 15px; }
+.c   { text-align: center; }
+.b   { font-weight: bold; }
+.lg  { font-size: 15px; }
 .row { display: flex; justify-content: space-between; }
 
-/* Form label helper */
 .label {
   display: block;
   font-size: 0.75rem;
