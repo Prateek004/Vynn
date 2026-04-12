@@ -1,15 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, ClipboardList, UtensilsCrossed, Settings, Package } from "lucide-react";
+import { ShoppingCart, ClipboardList, UtensilsCrossed, Settings } from "lucide-react";
 import { useApp } from "@/lib/store/AppContext";
 
 const TABS = [
-  { href: "/pos",      label: "POS",     Icon: ShoppingCart    },
-  { href: "/orders",   label: "Orders",  Icon: ClipboardList   },
-  { href: "/menu",     label: "Menu",    Icon: UtensilsCrossed },
-  { href: "/stock",    label: "Stock",   Icon: Package         },
-  { href: "/settings", label: "Settings",Icon: Settings        },
+  { href: "/pos",      label: "POS",      Icon: ShoppingCart    },
+  { href: "/orders",   label: "Orders",   Icon: ClipboardList   },
+  { href: "/menu",     label: "Menu",     Icon: UtensilsCrossed },
+  { href: "/settings", label: "Settings", Icon: Settings        },
 ];
 
 export default function BottomNav() {
