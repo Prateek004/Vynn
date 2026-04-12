@@ -10,6 +10,7 @@ import type { StockSettings } from "@/lib/types";
 
 const GST_OPTIONS = [0, 5, 12, 18];
 const BAR_BIZ_TYPES = ["cafe", "restaurant", "franchise"].filter((t) => !HIDE_FRANCHISE || t !== "franchise");
+const OPEN_TABLE_BIZ_TYPES = ["cafe", "restaurant"]; // only these get open table billing
 
 export default function SettingsPage() {
   const { state, setSession, logout, showToast } = useApp();
@@ -17,6 +18,7 @@ export default function SettingsPage() {
   const { session } = state;
   const isOwner = session?.role === "owner";
   const showBarToggle = BAR_BIZ_TYPES.includes(session?.businessType ?? "");
+  const showOpenTableToggle = OPEN_TABLE_BIZ_TYPES.includes(session?.businessType ?? "");
 
   const [gst, setGst] = useState(session?.gstPercent ?? 5);
   const [upiId, setUpiId] = useState(session?.upiId ?? "");
@@ -27,16 +29,18 @@ export default function SettingsPage() {
     kotEnabled: false,
     barEnabled: false,
     tableCount: 10,
+    openTableBilling: false,
   };
   const [tablesEnabled, setTablesEnabled] = useState(ss.tablesEnabled);
   const [kotEnabled, setKotEnabled] = useState(ss.kotEnabled);
   const [barEnabled, setBarEnabled] = useState(ss.barEnabled);
   const [tableCount, setTableCount] = useState(ss.tableCount);
+  const [openTableBilling, setOpenTableBilling] = useState(ss.openTableBilling ?? false);
 
   const handleSave = async () => {
     if (!session) return;
     setSaving(true);
-    const stockSettings: StockSettings = { tablesEnabled, kotEnabled, barEnabled, tableCount };
+    const stockSettings: StockSettings = { tablesEnabled, kotEnabled, barEnabled, tableCount, openTableBilling };
     const updated = { ...session, gstPercent: gst, upiId: upiId.trim() || undefined, stockSettings };
     localStorage.setItem("sz_session", JSON.stringify(updated));
     setSession(updated);
@@ -50,7 +54,6 @@ export default function SettingsPage() {
         }
       }
     }
-
     showToast("Settings saved ✓");
     setSaving(false);
   };
@@ -118,7 +121,26 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 )}
+
                 <Toggle label="KOT (Kitchen Order Ticket)" desc="Print kitchen tickets with orders" value={kotEnabled} onChange={setKotEnabled} />
+
+                {showOpenTableToggle && (
+                  <>
+                    <div className="h-px bg-gray-100" />
+                    <Toggle
+                      label="Open Table Billing"
+                      desc="Keep a table's bill open — add items across multiple rounds, pay once at the end"
+                      value={openTableBilling}
+                      onChange={setOpenTableBilling}
+                    />
+                    {openTableBilling && (
+                      <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                        Open Table Billing is active. Go to Orders → Open Tables to manage running tabs.
+                      </p>
+                    )}
+                  </>
+                )}
+
                 {showBarToggle && (
                   <>
                     <div className="h-px bg-gray-100" />
