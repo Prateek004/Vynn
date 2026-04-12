@@ -10,6 +10,7 @@ export interface StockSettings {
   kotEnabled: boolean;
   barEnabled: boolean;
   tableCount: number;
+  openTableBilling?: boolean; // NEW: accumulate orders per table
 }
 
 export interface UserSession {
@@ -65,10 +66,10 @@ export interface MenuCategory {
 export interface RawMaterial {
   id: string;
   name: string;
-  unit: string; // kg, litre, piece, etc.
+  unit: string;
   currentStock: number;
-  minStock?: number; // low stock alert threshold
-  costPaise?: number; // cost per unit in paise
+  minStock?: number;
+  costPaise?: number;
   updatedAt: string;
 }
 
@@ -79,7 +80,7 @@ export interface FinishedGood {
   unit: string;
   costPricePaise?: number;
   sellingPricePaise?: number;
-  expiryDate?: string; // ISO date string, optional
+  expiryDate?: string;
   purchasedAt: string;
   updatedAt: string;
 }
@@ -121,4 +122,13 @@ export interface Order {
   changePaise?: number;
   createdAt: string;
   syncStatus: "pending" | "synced" | "failed";
+}
+
+// NEW: represents an open/running table tab
+export interface OpenTable {
+  id: string;           // unique tab id
+  tableNumber: number;
+  items: CartItem[];    // all items added so far across multiple rounds
+  openedAt: string;     // ISO timestamp
+  updatedAt: string;
 }
