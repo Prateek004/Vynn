@@ -20,17 +20,15 @@ export default function CartPanel({ onClose }: Props) {
 
   const ss = session?.stockSettings;
   const tablesEnabled = ss?.tablesEnabled ?? false;
-  const tableCount = ss?.tableCount ?? 10;
+  const tableCount    = ss?.tableCount ?? 10;
 
   const [discountType, setDiscountType] = useState<"flat" | "percent">("flat");
   const [discountInput, setDiscountInput] = useState("");
   const [showCheckout, setShowCheckout] = useState(false);
   const [showTablePicker, setShowTablePicker] = useState(false);
 
-  // FIX: reset discount whenever cart becomes empty (catches closeTable, placeOrder, manual clear)
-  useEffect(() => {
-    if (cart.length === 0) setDiscountInput("");
-  }, [cart.length]);
+  // FIX: reset discount whenever cart empties (post-order, post-closeTable, manual clear)
+  useEffect(() => { if (cart.length === 0) setDiscountInput(""); }, [cart.length]);
 
   const subtotalPaise = cart.reduce((sum, item) => {
     const ao = item.selectedAddOns.reduce((s, a) => s + a.pricePaise, 0);
@@ -40,10 +38,10 @@ export default function CartPanel({ onClose }: Props) {
   const discountValue = Number(discountInput) || 0;
   const discountPaise = calcDiscount(subtotalPaise, discountType, discountValue);
   const afterDiscount = Math.max(0, subtotalPaise - discountPaise);
-  const gstPercent = session?.gstPercent ?? 0;
-  const gstPaise = calcGST(afterDiscount, gstPercent);
-  const totalPaise = afterDiscount + gstPaise;
-  const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+  const gstPercent    = session?.gstPercent ?? 0;
+  const gstPaise      = calcGST(afterDiscount, gstPercent);
+  const totalPaise    = afterDiscount + gstPaise;
+  const itemCount     = cart.reduce((s, i) => s + i.qty, 0);
 
   return (
     <>
@@ -59,7 +57,7 @@ export default function CartPanel({ onClose }: Props) {
           ))}
         </div>
 
-        {/* Table picker — only if tablesEnabled and dine_in */}
+        {/* Table picker */}
         {tablesEnabled && serviceMode === "dine_in" && (
           <div className="px-3 pb-2 shrink-0">
             <button onClick={() => setShowTablePicker(!showTablePicker)}
@@ -99,7 +97,7 @@ export default function CartPanel({ onClose }: Props) {
           )}
         </div>
 
-        {/* Scrollable items */}
+        {/* Items */}
         <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-300 select-none">
@@ -118,9 +116,7 @@ export default function CartPanel({ onClose }: Props) {
                       <p className="text-sm font-bold text-gray-900 truncate">{item.name}</p>
                       {item.selectedSize && <p className="text-xs text-gray-500">{item.selectedSize}</p>}
                       {item.selectedPortion && <p className="text-xs text-gray-500">{item.selectedPortion}</p>}
-                      {item.selectedAddOns.length > 0 && (
-                        <p className="text-xs text-gray-400">+ {item.selectedAddOns.map((a) => a.name).join(", ")}</p>
-                      )}
+                      {item.selectedAddOns.length > 0 && <p className="text-xs text-gray-400">+ {item.selectedAddOns.map((a) => a.name).join(", ")}</p>}
                       {item.notes && <p className="text-xs text-primary-500 italic mt-0.5">&quot;{item.notes}&quot;</p>}
                     </div>
                     <button onClick={() => removeFromCart(item.cartId)} className="text-gray-300 hover:text-red-400 p-0.5 shrink-0">
@@ -129,15 +125,9 @@ export default function CartPanel({ onClose }: Props) {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden">
-                      <button onClick={() => updateCartQty(item.cartId, item.qty - 1)}
-                        className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 press">
-                        <Minus size={13} />
-                      </button>
+                      <button onClick={() => updateCartQty(item.cartId, item.qty - 1)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 press"><Minus size={13} /></button>
                       <span className="w-7 text-center text-sm font-black">{item.qty}</span>
-                      <button onClick={() => updateCartQty(item.cartId, item.qty + 1)}
-                        className="w-8 h-8 flex items-center justify-center bg-primary-500 press">
-                        <Plus size={13} className="text-white" />
-                      </button>
+                      <button onClick={() => updateCartQty(item.cartId, item.qty + 1)} className="w-8 h-8 flex items-center justify-center bg-primary-500 press"><Plus size={13} className="text-white" /></button>
                     </div>
                     <span className="text-sm font-black text-gray-900">{fmtRupee(lineTotal)}</span>
                   </div>
@@ -150,42 +140,25 @@ export default function CartPanel({ onClose }: Props) {
         {/* Summary + Checkout */}
         {cart.length > 0 && (
           <div className="border-t border-gray-100 px-4 pt-3 pb-4 space-y-3 shrink-0 bg-white">
-            {/* Discount */}
             <div className="flex items-center gap-2">
               <Tag size={14} className="text-gray-400 shrink-0" />
               <div className="flex rounded-xl border border-gray-200 overflow-hidden shrink-0">
-                <button onClick={() => setDiscountType("flat")}
-                  className={`px-2.5 py-1.5 text-xs font-bold transition-colors ${discountType === "flat" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>₹</button>
-                <button onClick={() => setDiscountType("percent")}
-                  className={`px-2.5 py-1.5 text-xs font-bold transition-colors ${discountType === "percent" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>%</button>
+                <button onClick={() => setDiscountType("flat")} className={`px-2.5 py-1.5 text-xs font-bold transition-colors ${discountType === "flat" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>₹</button>
+                <button onClick={() => setDiscountType("percent")} className={`px-2.5 py-1.5 text-xs font-bold transition-colors ${discountType === "percent" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>%</button>
               </div>
               <input type="number" className="flex-1 h-8 px-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-primary-500"
                 placeholder={discountType === "flat" ? "Discount ₹" : "Discount %"}
                 value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} />
             </div>
-
-            {/* Bill lines */}
             <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-gray-500">
-                <span>Subtotal</span><span className="font-semibold">{fmtRupee(subtotalPaise)}</span>
-              </div>
-              {discountPaise > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Discount</span><span className="font-semibold">−{fmtRupee(discountPaise)}</span>
-                </div>
-              )}
-              {gstPercent > 0 && (
-                <div className="flex justify-between text-gray-500">
-                  <span>GST ({gstPercent}%)</span><span className="font-semibold">{fmtRupee(gstPaise)}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-gray-500"><span>Subtotal</span><span className="font-semibold">{fmtRupee(subtotalPaise)}</span></div>
+              {discountPaise > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span className="font-semibold">−{fmtRupee(discountPaise)}</span></div>}
+              {gstPercent > 0 && <div className="flex justify-between text-gray-500"><span>GST ({gstPercent}%)</span><span className="font-semibold">{fmtRupee(gstPaise)}</span></div>}
               <div className="flex justify-between text-base font-black text-gray-900 pt-1.5 border-t border-gray-100">
                 <span>Total</span><span className="text-primary-500">{fmtRupee(totalPaise)}</span>
               </div>
             </div>
-
-            <button onClick={() => setShowCheckout(true)}
-              className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold press shadow-md">
+            <button onClick={() => setShowCheckout(true)} className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold press shadow-md">
               Checkout · {fmtRupee(totalPaise)}
             </button>
           </div>
@@ -195,13 +168,9 @@ export default function CartPanel({ onClose }: Props) {
       <CheckoutModal
         open={showCheckout}
         onClose={() => { setShowCheckout(false); onClose?.(); }}
-        totalPaise={totalPaise}
-        subtotalPaise={subtotalPaise}
-        discountPaise={discountPaise}
-        gstPaise={gstPaise}
-        gstPercent={gstPercent}
-        discountType={discountType}
-        discountValue={discountValue}
+        totalPaise={totalPaise} subtotalPaise={subtotalPaise}
+        discountPaise={discountPaise} gstPaise={gstPaise} gstPercent={gstPercent}
+        discountType={discountType} discountValue={discountValue}
       />
     </>
   );
