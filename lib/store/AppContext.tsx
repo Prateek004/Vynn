@@ -38,9 +38,10 @@ const initialState: AppState = {
 };
 
 // ── Persist helpers ───────────────────────────────────────────────────────────
-const SESSION_KEY = "sz_session";
-const CART_KEY    = "sz_cart";
-const UI_KEY      = "sz_ui";
+// FIX: was "sz_session" — must match auth.ts getCurrentUserId() which reads "vynn_session"
+const SESSION_KEY = "vynn_session";
+const CART_KEY    = "vynn_cart";
+const UI_KEY      = "vynn_ui";
 
 function saveSession(s: UserSession | null) {
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -98,9 +99,10 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, tableNumber: action.tableNumber };
     case "CART_ADD": {
       const incoming = action.payload;
-      const key = [incoming.menuItemId, incoming.selectedSize ?? "", incoming.selectedPortion ?? "", incoming.selectedAddOns.map((a) => a.id).sort().join(",")].join("|");
+      // FIX: include notes in dedup key so items with different notes don't silently merge
+      const key = [incoming.menuItemId, incoming.selectedSize ?? "", incoming.selectedPortion ?? "", incoming.selectedAddOns.map((a) => a.id).sort().join(","), incoming.notes ?? ""].join("|");
       const existingIdx = state.cart.findIndex((c) => {
-        const k = [c.menuItemId, c.selectedSize ?? "", c.selectedPortion ?? "", c.selectedAddOns.map((a) => a.id).sort().join(",")].join("|");
+        const k = [c.menuItemId, c.selectedSize ?? "", c.selectedPortion ?? "", c.selectedAddOns.map((a) => a.id).sort().join(","), c.notes ?? ""].join("|");
         return k === key;
       });
       if (existingIdx !== -1) {
@@ -223,7 +225,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!state.isLoading) saveUI({ serviceMode: state.serviceMode, tableNumber: state.tableNumber });
   }, [state.serviceMode, state.tableNumber, state.isLoading]);
 
-  // ── Auto-persist session whenever it changes (catches all settings saves) ─
+  // ── Auto-persist session whenever it changes ─────────────────────────────
   useEffect(() => {
     if (!state.isLoading) saveSession(state.session);
   }, [state.session, state.isLoading]);
@@ -257,7 +259,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "LOGOUT" });
   }, []);
 
-  // setSession: now just dispatches — the useEffect above auto-saves to localStorage
   const setSession = useCallback((s: UserSession | null) => {
     dispatch({ type: "SET_SESSION", payload: s });
   }, []);
