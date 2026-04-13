@@ -18,21 +18,21 @@ class ServezyDB extends Dexie {
     this.version(2).stores({ orders: "id, createdAt, syncStatus", menuItems: "id, categoryId", categories: "id, sortOrder", rawMaterials: "id, name", finishedGoods: "id, name, expiryDate" });
     this.version(3).stores({ orders: "id, createdAt, syncStatus", menuItems: "id, categoryId", categories: "id, sortOrder", rawMaterials: "id, name", finishedGoods: "id, name, expiryDate", barItems: "id, name, expiryDate" });
     this.version(4).stores({
-      orders:        "id, _uid, createdAt, syncStatus",
-      menuItems:     "id, _uid, categoryId",
-      categories:    "id, _uid, sortOrder",
-      rawMaterials:  "id, _uid, name",
+      orders: "id, _uid, createdAt, syncStatus",
+      menuItems: "id, _uid, categoryId",
+      categories: "id, _uid, sortOrder",
+      rawMaterials: "id, _uid, name",
       finishedGoods: "id, _uid, name, expiryDate",
-      barItems:      "id, _uid, name, expiryDate",
+      barItems: "id, _uid, name, expiryDate",
     });
     this.version(5).stores({
-      orders:        "id, _uid, createdAt, syncStatus",
-      menuItems:     "id, _uid, categoryId",
-      categories:    "id, _uid, sortOrder",
-      rawMaterials:  "id, _uid, name",
+      orders: "id, _uid, createdAt, syncStatus",
+      menuItems: "id, _uid, categoryId",
+      categories: "id, _uid, sortOrder",
+      rawMaterials: "id, _uid, name",
       finishedGoods: "id, _uid, name, expiryDate",
-      barItems:      "id, _uid, name, expiryDate",
-      openTables:    "id, _uid, tableNumber",
+      barItems: "id, _uid, name, expiryDate",
+      openTables: "id, _uid, tableNumber",
     });
   }
 }
@@ -56,7 +56,7 @@ export async function dbGetTodaysOrders(uid: string): Promise<Order[]> {
   const all = await getDB().orders.where("_uid").equals(uid).toArray();
   return all.filter((o) => o.createdAt.startsWith(today)) as unknown as Order[];
 }
-// FIX: uid is now required — prevents backgroundSync from leaking cross-user orders
+// FIX: uid required — prevents backgroundSync from leaking cross-user orders
 export async function dbGetPendingOrders(uid: string): Promise<Order[]> {
   const all = await getDB().orders.where("_uid").equals(uid).toArray();
   return all.filter((o) => o.syncStatus === "pending" || o.syncStatus === "failed") as unknown as Order[];
