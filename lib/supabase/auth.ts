@@ -21,6 +21,7 @@ const LOCAL_USERS_KEY = "vynn_local_users";
 interface LocalUser {
   username: string;
   passwordHash: string;
+  salt?: string; // FIX: added — undefined on legacy accounts, triggers upgrade path
   role: UserRole;
   businessName: string;
   ownerName: string;
@@ -29,7 +30,22 @@ interface LocalUser {
   upiId?: string;
 }
 
-function hashPassword(password: string): string {
+// FIX: replaced insecure djb2 with SHA-256 + per-user salt via Web Crypto API
+async function hashPassword(password: string, salt: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(salt + password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function generateSalt(): string {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Legacy djb2 — only used to verify and upgrade old accounts
+function legacyHash(password: string): string {
   let hash = 0;
   for (let i = 0; i < password.length; i++) {
     const c = password.charCodeAt(i);
@@ -40,11 +56,7 @@ function hashPassword(password: string): string {
 }
 
 function getLocalUsers(): LocalUser[] {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) ?? "[]"); } catch { return []; }
 }
 
 function saveLocalUsers(users: LocalUser[]): void {
@@ -58,9 +70,12 @@ export async function signUp(data: SignUpData): Promise<AuthResult> {
     const users = getLocalUsers();
     const exists = users.some((u) => u.username === data.username.toLowerCase().trim());
     if (exists) return { ok: false, error: "Username already taken" };
+    const salt = generateSalt();
+    const passwordHash = await hashPassword(data.password, salt);
     users.push({
       username: data.username.toLowerCase().trim(),
-      passwordHash: hashPassword(data.password),
+      passwordHash,
+      salt,
       role: data.role,
       businessName: data.businessName.trim(),
       ownerName: data.ownerName.trim(),
@@ -74,7 +89,6 @@ export async function signUp(data: SignUpData): Promise<AuthResult> {
   const username = data.username.toLowerCase().trim();
   const email = `${username}@vynn.app`;
 
-  // Pass all business data as metadata so the DB trigger captures it
   const { data: authData, error } = await sb.auth.signUp({
     email,
     password: data.password,
@@ -110,7 +124,24 @@ export async function signIn(username: string, password: string): Promise<AuthRe
     const users = getLocalUsers();
     const user = users.find((u) => u.username === username.toLowerCase().trim());
     if (!user) return { ok: false, error: "Username not found" };
-    if (user.passwordHash !== hashPassword(password)) return { ok: false, error: "Incorrect password" };
+
+    let match = false;
+    if (user.salt) {
+      // Modern account — SHA-256 + salt
+      const hash = await hashPassword(password, user.salt);
+      match = hash === user.passwordHash;
+    } else {
+      // FIX: Legacy account (no salt) — verify with old djb2 then upgrade in-place
+      if (legacyHash(password) === user.passwordHash) {
+        match = true;
+        const salt = generateSalt();
+        user.salt = salt;
+        user.passwordHash = await hashPassword(password, salt);
+        saveLocalUsers(users);
+      }
+    }
+
+    if (!match) return { ok: false, error: "Incorrect password" };
     return {
       ok: true,
       userId: `local_${user.username}`,
@@ -158,14 +189,10 @@ export async function signOut(): Promise<void> {
 export async function getCurrentUserId(): Promise<string | null> {
   const sb = getSupabase();
   if (!sb) {
+    // FIX: aligned with AppContext SESSION_KEY = "vynn_session"
     const raw = typeof window !== "undefined" ? localStorage.getItem("vynn_session") : null;
     if (!raw) return null;
-    try {
-      const s = JSON.parse(raw);
-      return s.userId ?? null;
-    } catch {
-      return null;
-    }
+    try { const s = JSON.parse(raw); return s.userId ?? null; } catch { return null; }
   }
   const { data } = await sb.auth.getUser();
   return data.user?.id ?? null;
