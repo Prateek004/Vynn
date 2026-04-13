@@ -87,12 +87,14 @@ export async function syncMenuToSupabase(userId: string): Promise<void> {
   }
 }
 
-export async function backgroundSync(userId?: string): Promise<void> {
+// FIX: uid is now required — prevents syncing all local users' pending orders
+// under whoever happens to be currently authenticated with Supabase
+export async function backgroundSync(userId: string): Promise<void> {
   if (!isSupabaseEnabled()) return;
   try {
-    const pending = await dbGetPendingOrders();
+    const pending = await dbGetPendingOrders(userId);
     for (const order of pending) await syncOrder(order);
-    if (userId) await syncMenuToSupabase(userId);
+    await syncMenuToSupabase(userId);
   } catch {
     // silent
   }
