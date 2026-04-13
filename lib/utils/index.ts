@@ -1,4 +1,3 @@
-// ── Feature flags ────────────────────────────────────────────
 export const HIDE_FRANCHISE = true;
 
 export const toP = (rupee: number): number => Math.round(rupee * 100);
@@ -19,8 +18,7 @@ export const calcDiscount = (
 export const calcGST = (afterDiscountPaise: number, pct: number): number =>
   Math.round((afterDiscountPaise * pct) / 100);
 
-// FIX: replaced Date.now().slice(-4) with a random UUID segment
-// Date.now() has ~10ms resolution — two bills within the same 10ms share an identical number
+// FIX: crypto.randomUUID suffix prevents duplicate bill numbers under rapid checkout
 export const generateBillNumber = (): string => {
   const d = new Date();
   const yy = String(d.getFullYear()).slice(2);
