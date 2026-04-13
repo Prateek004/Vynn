@@ -1,5 +1,4 @@
 // ── Feature flags ────────────────────────────────────────────
-// Set to false when franchise is ready to launch (Phase 2)
 export const HIDE_FRANCHISE = true;
 
 export const toP = (rupee: number): number => Math.round(rupee * 100);
@@ -20,13 +19,15 @@ export const calcDiscount = (
 export const calcGST = (afterDiscountPaise: number, pct: number): number =>
   Math.round((afterDiscountPaise * pct) / 100);
 
+// FIX: replaced Date.now().slice(-4) with a random UUID segment
+// Date.now() has ~10ms resolution — two bills within the same 10ms share an identical number
 export const generateBillNumber = (): string => {
   const d = new Date();
   const yy = String(d.getFullYear()).slice(2);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
-  const seq = String(Date.now()).slice(-4);
-  return `SV${yy}${mm}${dd}-${seq}`;
+  const rand = crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+  return `SV${yy}${mm}${dd}-${rand}`;
 };
 
 export const fmtTime = (iso: string): string =>
