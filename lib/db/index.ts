@@ -56,8 +56,10 @@ export async function dbGetTodaysOrders(uid: string): Promise<Order[]> {
   const all = await getDB().orders.where("_uid").equals(uid).toArray();
   return all.filter((o) => o.createdAt.startsWith(today)) as unknown as Order[];
 }
-export async function dbGetPendingOrders(): Promise<Order[]> {
-  return getDB().orders.where("syncStatus").anyOf("pending", "failed").toArray() as unknown as Order[];
+// FIX: uid is now required — prevents backgroundSync from leaking cross-user orders
+export async function dbGetPendingOrders(uid: string): Promise<Order[]> {
+  const all = await getDB().orders.where("_uid").equals(uid).toArray();
+  return all.filter((o) => o.syncStatus === "pending" || o.syncStatus === "failed") as unknown as Order[];
 }
 export async function dbUpdateSyncStatus(id: string, status: Order["syncStatus"]): Promise<void> {
   await getDB().orders.update(id, { syncStatus: status });
