@@ -28,6 +28,9 @@ export default function StatsPage() {
 
   const itemMap: Record<string, { name: string; qty: number; revenue: number }> = {};
   allOrders.forEach((o) => o.items.forEach((i) => {
+    // FIX: unitPricePaise already includes add-on price (set in ItemConfigModal).
+    // Using it directly was correct — but we must NOT add add-ons again here.
+    // The line total per item for stats purposes is simply unitPricePaise * qty.
     const line = i.unitPricePaise * i.qty;
     if (!itemMap[i.menuItemId]) itemMap[i.menuItemId] = { name: i.name, qty: 0, revenue: 0 };
     itemMap[i.menuItemId].qty += i.qty;
