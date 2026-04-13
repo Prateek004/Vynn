@@ -10,7 +10,7 @@ export interface StockSettings {
   kotEnabled: boolean;
   barEnabled: boolean;
   tableCount: number;
-  openTableBilling?: boolean; // NEW: accumulate orders per table
+  openTableBilling?: boolean;
 }
 
 export interface UserSession {
@@ -124,11 +124,10 @@ export interface Order {
   syncStatus: "pending" | "synced" | "failed";
 }
 
-// NEW: represents an open/running table tab
 export interface OpenTable {
-  id: string;           // unique tab id
+  id: string;
   tableNumber: number;
-  items: CartItem[];    // all items added so far across multiple rounds
-  openedAt: string;     // ISO timestamp
+  items: CartItem[];
+  openedAt: string;
   updatedAt: string;
 }
