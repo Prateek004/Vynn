@@ -16,12 +16,13 @@ export interface SignUpData {
   businessType: string;
 }
 
+// ── Local auth (offline / no Supabase) ───────────────────────────────────────
 const LOCAL_USERS_KEY = "vynn_local_users";
 
 interface LocalUser {
   username: string;
   passwordHash: string;
-  salt?: string; // FIX: added — undefined on legacy accounts, triggers upgrade path
+  salt?: string;
   role: UserRole;
   businessName: string;
   ownerName: string;
@@ -30,12 +31,11 @@ interface LocalUser {
   upiId?: string;
 }
 
-// FIX: replaced insecure djb2 with SHA-256 + per-user salt via Web Crypto API
+// FIX: SHA-256 + per-user salt replaces insecure djb2 hash
 async function hashPassword(password: string, salt: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const data = new TextEncoder().encode(salt + password);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function generateSalt(): string {
@@ -44,21 +44,16 @@ function generateSalt(): string {
   return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Legacy djb2 — only used to verify and upgrade old accounts
+// Legacy djb2 — only used to verify and upgrade old local accounts
 function legacyHash(password: string): string {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const c = password.charCodeAt(i);
-    hash = (hash << 5) - hash + c;
-    hash |= 0;
-  }
-  return String(hash);
+  let h = 0;
+  for (let i = 0; i < password.length; i++) { h = (h << 5) - h + password.charCodeAt(i); h |= 0; }
+  return String(h);
 }
 
 function getLocalUsers(): LocalUser[] {
   try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) ?? "[]"); } catch { return []; }
 }
-
 function saveLocalUsers(users: LocalUser[]): void {
   localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
 }
@@ -68,14 +63,13 @@ export async function signUp(data: SignUpData): Promise<AuthResult> {
 
   if (!sb) {
     const users = getLocalUsers();
-    const exists = users.some((u) => u.username === data.username.toLowerCase().trim());
-    if (exists) return { ok: false, error: "Username already taken" };
+    if (users.some((u) => u.username === data.username.toLowerCase().trim()))
+      return { ok: false, error: "Username already taken" };
     const salt = generateSalt();
     const passwordHash = await hashPassword(data.password, salt);
     users.push({
       username: data.username.toLowerCase().trim(),
-      passwordHash,
-      salt,
+      passwordHash, salt,
       role: data.role,
       businessName: data.businessName.trim(),
       ownerName: data.ownerName.trim(),
@@ -105,7 +99,6 @@ export async function signUp(data: SignUpData): Promise<AuthResult> {
 
   if (error) return { ok: false, error: error.message };
   if (!authData.user) return { ok: false, error: "Signup failed — no user returned" };
-
   return { ok: true };
 }
 
@@ -127,11 +120,9 @@ export async function signIn(username: string, password: string): Promise<AuthRe
 
     let match = false;
     if (user.salt) {
-      // Modern account — SHA-256 + salt
-      const hash = await hashPassword(password, user.salt);
-      match = hash === user.passwordHash;
+      match = (await hashPassword(password, user.salt)) === user.passwordHash;
     } else {
-      // FIX: Legacy account (no salt) — verify with old djb2 then upgrade in-place
+      // Legacy account — verify with old djb2, then upgrade to SHA-256 in-place
       if (legacyHash(password) === user.passwordHash) {
         match = true;
         const salt = generateSalt();
@@ -189,10 +180,9 @@ export async function signOut(): Promise<void> {
 export async function getCurrentUserId(): Promise<string | null> {
   const sb = getSupabase();
   if (!sb) {
-    // FIX: aligned with AppContext SESSION_KEY = "vynn_session"
     const raw = typeof window !== "undefined" ? localStorage.getItem("vynn_session") : null;
     if (!raw) return null;
-    try { const s = JSON.parse(raw); return s.userId ?? null; } catch { return null; }
+    try { return JSON.parse(raw).userId ?? null; } catch { return null; }
   }
   const { data } = await sb.auth.getUser();
   return data.user?.id ?? null;
