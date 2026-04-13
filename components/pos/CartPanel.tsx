@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "@/lib/store/AppContext";
 import { fmtRupee, calcDiscount, calcGST } from "@/lib/utils";
 import { Minus, Plus, Trash2, Tag, UtensilsCrossed, ShoppingBag, Bike, LayoutGrid } from "lucide-react";
@@ -26,6 +26,11 @@ export default function CartPanel({ onClose }: Props) {
   const [discountInput, setDiscountInput] = useState("");
   const [showCheckout, setShowCheckout] = useState(false);
   const [showTablePicker, setShowTablePicker] = useState(false);
+
+  // FIX: reset discount whenever cart becomes empty (catches closeTable, placeOrder, manual clear)
+  useEffect(() => {
+    if (cart.length === 0) setDiscountInput("");
+  }, [cart.length]);
 
   const subtotalPaise = cart.reduce((sum, item) => {
     const ao = item.selectedAddOns.reduce((s, a) => s + a.pricePaise, 0);
@@ -116,7 +121,7 @@ export default function CartPanel({ onClose }: Props) {
                       {item.selectedAddOns.length > 0 && (
                         <p className="text-xs text-gray-400">+ {item.selectedAddOns.map((a) => a.name).join(", ")}</p>
                       )}
-                      {item.notes && <p className="text-xs text-primary-500 italic mt-0.5">"{item.notes}"</p>}
+                      {item.notes && <p className="text-xs text-primary-500 italic mt-0.5">&quot;{item.notes}&quot;</p>}
                     </div>
                     <button onClick={() => removeFromCart(item.cartId)} className="text-gray-300 hover:text-red-400 p-0.5 shrink-0">
                       <Trash2 size={14} />
