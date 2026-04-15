@@ -1,9 +1,88 @@
 import Dexie, { type Table } from "dexie";
-import type { Order, MenuItem, MenuCategory, RawMaterial, FinishedGood, OpenTable } from "@/lib/types";
+import type {
+  Order,
+  MenuItem,
+  MenuCategory,
+  RawMaterial,
+  FinishedGood,
+  OpenTable,
+} from "@/lib/types";
 
 type WithUid<T> = T & { _uid: string };
 
-class ServezyDB extends Dexie {
+// ── Safe migration: servezy_db → vynn_db ─────────────────────────────────────
+// Runs once on first load. Copies all data, then deletes old DB.
+// If anything fails, logs a warning — old data is NEVER deleted until copy succeeds.
+async function migrateFromServezyIfNeeded(): Promise<void> {
+  try {
+    if (typeof indexedDB === "undefined" || !indexedDB.databases) return;
+    const databases = await indexedDB.databases();
+    const hasServezy = databases.some((d) => d.name === "servezy_db");
+    const hasVynn = databases.some((d) => d.name === "vynn_db");
+    if (!hasServezy || hasVynn) return;
+
+    const old = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open("servezy_db");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    const storeNames = Array.from(old.objectStoreNames);
+    const exported: Record<string, unknown[]> = {};
+
+    await Promise.all(
+      storeNames.map(
+        (name) =>
+          new Promise<void>((resolve, reject) => {
+            const tx = old.transaction(name, "readonly");
+            const req = tx.objectStore(name).getAll();
+            req.onsuccess = () => {
+              exported[name] = req.result ?? [];
+              resolve();
+            };
+            req.onerror = () => reject(req.error);
+          })
+      )
+    );
+    old.close();
+
+    // Write into new DB
+    const vynn = new VynnDB();
+    await vynn.open();
+
+    const tableMap: Record<string, Table> = {
+      orders: vynn.orders as unknown as Table,
+      menuItems: vynn.menuItems as unknown as Table,
+      categories: vynn.categories as unknown as Table,
+      rawMaterials: vynn.rawMaterials as unknown as Table,
+      finishedGoods: vynn.finishedGoods as unknown as Table,
+      barItems: vynn.barItems as unknown as Table,
+      openTables: vynn.openTables as unknown as Table,
+    };
+
+    for (const [store, rows] of Object.entries(exported)) {
+      if (tableMap[store] && rows.length > 0) {
+        await tableMap[store].bulkPut(rows);
+      }
+    }
+    vynn.close();
+
+    // Only delete old DB after successful copy
+    await new Promise<void>((resolve) => {
+      const req = indexedDB.deleteDatabase("servezy_db");
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve(); // non-fatal
+      req.onblocked = () => resolve();
+    });
+
+    console.log("[Vynn] Migrated from servezy_db ✓");
+  } catch (err) {
+    console.warn("[Vynn] Migration skipped (non-fatal):", err);
+  }
+}
+
+// ── Database ──────────────────────────────────────────────────────────────────
+class VynnDB extends Dexie {
   orders!: Table<WithUid<Order>, string>;
   menuItems!: Table<WithUid<MenuItem>, string>;
   categories!: Table<WithUid<MenuCategory>, string>;
@@ -13,19 +92,8 @@ class ServezyDB extends Dexie {
   openTables!: Table<WithUid<OpenTable>, string>;
 
   constructor() {
-    super("servezy_db");
-    this.version(1).stores({ orders: "id, createdAt, syncStatus", menuItems: "id, categoryId", categories: "id, sortOrder" });
-    this.version(2).stores({ orders: "id, createdAt, syncStatus", menuItems: "id, categoryId", categories: "id, sortOrder", rawMaterials: "id, name", finishedGoods: "id, name, expiryDate" });
-    this.version(3).stores({ orders: "id, createdAt, syncStatus", menuItems: "id, categoryId", categories: "id, sortOrder", rawMaterials: "id, name", finishedGoods: "id, name, expiryDate", barItems: "id, name, expiryDate" });
-    this.version(4).stores({
-      orders: "id, _uid, createdAt, syncStatus",
-      menuItems: "id, _uid, categoryId",
-      categories: "id, _uid, sortOrder",
-      rawMaterials: "id, _uid, name",
-      finishedGoods: "id, _uid, name, expiryDate",
-      barItems: "id, _uid, name, expiryDate",
-    });
-    this.version(5).stores({
+    super("vynn_db");
+    this.version(1).stores({
       orders: "id, _uid, createdAt, syncStatus",
       menuItems: "id, _uid, categoryId",
       categories: "id, _uid, sortOrder",
@@ -37,109 +105,197 @@ class ServezyDB extends Dexie {
   }
 }
 
-let _db: ServezyDB | null = null;
-function getDB(): ServezyDB {
-  if (!_db) _db = new ServezyDB();
-  return _db;
+let _db: VynnDB | null = null;
+let _ready: Promise<VynnDB> | null = null;
+
+function getDB(): Promise<VynnDB> {
+  if (_ready) return _ready;
+  _ready = migrateFromServezyIfNeeded().then(() => {
+    if (!_db) _db = new VynnDB();
+    return _db;
+  });
+  return _ready;
 }
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 export async function dbSaveOrder(order: Order, uid: string): Promise<void> {
-  await getDB().orders.put({ ...order, _uid: uid });
+  const db = await getDB();
+  await db.orders.put({ ...order, _uid: uid });
 }
 export async function dbGetAllOrders(uid: string): Promise<Order[]> {
-  const rows = await getDB().orders.where("_uid").equals(uid).reverse().sortBy("createdAt");
+  const db = await getDB();
+  const rows = await db.orders
+    .where("_uid")
+    .equals(uid)
+    .reverse()
+    .sortBy("createdAt");
   return rows as unknown as Order[];
 }
 export async function dbGetTodaysOrders(uid: string): Promise<Order[]> {
+  const db = await getDB();
   const today = new Date().toISOString().slice(0, 10);
-  const all = await getDB().orders.where("_uid").equals(uid).toArray();
+  const all = await db.orders.where("_uid").equals(uid).toArray();
   return all.filter((o) => o.createdAt.startsWith(today)) as unknown as Order[];
 }
-// FIX: uid required — prevents backgroundSync from leaking cross-user orders
 export async function dbGetPendingOrders(uid: string): Promise<Order[]> {
-  const all = await getDB().orders.where("_uid").equals(uid).toArray();
-  return all.filter((o) => o.syncStatus === "pending" || o.syncStatus === "failed") as unknown as Order[];
+  const db = await getDB();
+  const all = await db.orders.where("_uid").equals(uid).toArray();
+  return all.filter(
+    (o) => o.syncStatus === "pending" || o.syncStatus === "failed"
+  ) as unknown as Order[];
 }
-export async function dbUpdateSyncStatus(id: string, status: Order["syncStatus"]): Promise<void> {
-  await getDB().orders.update(id, { syncStatus: status });
+export async function dbUpdateSyncStatus(
+  id: string,
+  status: Order["syncStatus"]
+): Promise<void> {
+  const db = await getDB();
+  await db.orders.update(id, { syncStatus: status });
 }
 
 // ── Menu Items ────────────────────────────────────────────────────────────────
 export async function dbSaveMenuItem(item: MenuItem, uid: string): Promise<void> {
-  await getDB().menuItems.put({ ...item, _uid: uid });
+  const db = await getDB();
+  await db.menuItems.put({ ...item, _uid: uid });
 }
 export async function dbDeleteMenuItem(id: string, uid: string): Promise<void> {
-  const rec = await getDB().menuItems.get(id);
-  if (rec && rec._uid === uid) await getDB().menuItems.delete(id);
+  const db = await getDB();
+  const rec = await db.menuItems.get(id);
+  if (rec && rec._uid === uid) await db.menuItems.delete(id);
 }
 export async function dbGetAllMenuItems(uid: string): Promise<MenuItem[]> {
-  return getDB().menuItems.where("_uid").equals(uid).toArray() as unknown as MenuItem[];
+  const db = await getDB();
+  return db.menuItems
+    .where("_uid")
+    .equals(uid)
+    .toArray() as unknown as MenuItem[];
 }
-export async function dbBulkSaveMenuItems(items: MenuItem[], uid: string): Promise<void> {
-  await getDB().menuItems.bulkPut(items.map((i) => ({ ...i, _uid: uid })));
+export async function dbBulkSaveMenuItems(
+  items: MenuItem[],
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.menuItems.bulkPut(items.map((i) => ({ ...i, _uid: uid })));
 }
 
 // ── Categories ────────────────────────────────────────────────────────────────
-export async function dbSaveCategory(cat: MenuCategory, uid: string): Promise<void> {
-  await getDB().categories.put({ ...cat, _uid: uid });
+export async function dbSaveCategory(
+  cat: MenuCategory,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.categories.put({ ...cat, _uid: uid });
 }
 export async function dbDeleteCategory(id: string, uid: string): Promise<void> {
-  const rec = await getDB().categories.get(id);
-  if (rec && rec._uid === uid) await getDB().categories.delete(id);
+  const db = await getDB();
+  const rec = await db.categories.get(id);
+  if (rec && rec._uid === uid) await db.categories.delete(id);
 }
 export async function dbGetAllCategories(uid: string): Promise<MenuCategory[]> {
-  const cats = await getDB().categories.where("_uid").equals(uid).toArray();
-  return cats.sort((a, b) => a.sortOrder - b.sortOrder) as unknown as MenuCategory[];
+  const db = await getDB();
+  const cats = await db.categories.where("_uid").equals(uid).toArray();
+  return cats.sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  ) as unknown as MenuCategory[];
 }
-export async function dbBulkSaveCategories(cats: MenuCategory[], uid: string): Promise<void> {
-  await getDB().categories.bulkPut(cats.map((c) => ({ ...c, _uid: uid })));
+export async function dbBulkSaveCategories(
+  cats: MenuCategory[],
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.categories.bulkPut(cats.map((c) => ({ ...c, _uid: uid })));
 }
 
 // ── Raw Materials ─────────────────────────────────────────────────────────────
-export async function dbSaveRawMaterial(item: RawMaterial, uid: string): Promise<void> {
-  await getDB().rawMaterials.put({ ...item, _uid: uid });
+export async function dbSaveRawMaterial(
+  item: RawMaterial,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.rawMaterials.put({ ...item, _uid: uid });
 }
-export async function dbDeleteRawMaterial(id: string, uid: string): Promise<void> {
-  const rec = await getDB().rawMaterials.get(id);
-  if (rec && rec._uid === uid) await getDB().rawMaterials.delete(id);
+export async function dbDeleteRawMaterial(
+  id: string,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  const rec = await db.rawMaterials.get(id);
+  if (rec && rec._uid === uid) await db.rawMaterials.delete(id);
 }
 export async function dbGetAllRawMaterials(uid: string): Promise<RawMaterial[]> {
-  return getDB().rawMaterials.where("_uid").equals(uid).toArray() as unknown as RawMaterial[];
+  const db = await getDB();
+  return db.rawMaterials
+    .where("_uid")
+    .equals(uid)
+    .toArray() as unknown as RawMaterial[];
 }
 
 // ── Finished Goods ────────────────────────────────────────────────────────────
-export async function dbSaveFinishedGood(item: FinishedGood, uid: string): Promise<void> {
-  await getDB().finishedGoods.put({ ...item, _uid: uid });
+export async function dbSaveFinishedGood(
+  item: FinishedGood,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.finishedGoods.put({ ...item, _uid: uid });
 }
-export async function dbDeleteFinishedGood(id: string, uid: string): Promise<void> {
-  const rec = await getDB().finishedGoods.get(id);
-  if (rec && rec._uid === uid) await getDB().finishedGoods.delete(id);
+export async function dbDeleteFinishedGood(
+  id: string,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  const rec = await db.finishedGoods.get(id);
+  if (rec && rec._uid === uid) await db.finishedGoods.delete(id);
 }
-export async function dbGetAllFinishedGoods(uid: string): Promise<FinishedGood[]> {
-  return getDB().finishedGoods.where("_uid").equals(uid).toArray() as unknown as FinishedGood[];
+export async function dbGetAllFinishedGoods(
+  uid: string
+): Promise<FinishedGood[]> {
+  const db = await getDB();
+  return db.finishedGoods
+    .where("_uid")
+    .equals(uid)
+    .toArray() as unknown as FinishedGood[];
 }
 
 // ── Bar Items ─────────────────────────────────────────────────────────────────
-export async function dbSaveBarItem(item: FinishedGood, uid: string): Promise<void> {
-  await getDB().barItems.put({ ...item, _uid: uid });
+export async function dbSaveBarItem(
+  item: FinishedGood,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.barItems.put({ ...item, _uid: uid });
 }
 export async function dbDeleteBarItem(id: string, uid: string): Promise<void> {
-  const rec = await getDB().barItems.get(id);
-  if (rec && rec._uid === uid) await getDB().barItems.delete(id);
+  const db = await getDB();
+  const rec = await db.barItems.get(id);
+  if (rec && rec._uid === uid) await db.barItems.delete(id);
 }
 export async function dbGetAllBarItems(uid: string): Promise<FinishedGood[]> {
-  return getDB().barItems.where("_uid").equals(uid).toArray() as unknown as FinishedGood[];
+  const db = await getDB();
+  return db.barItems
+    .where("_uid")
+    .equals(uid)
+    .toArray() as unknown as FinishedGood[];
 }
 
 // ── Open Tables ───────────────────────────────────────────────────────────────
-export async function dbSaveOpenTable(tab: OpenTable, uid: string): Promise<void> {
-  await getDB().openTables.put({ ...tab, _uid: uid });
+export async function dbSaveOpenTable(
+  tab: OpenTable,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  await db.openTables.put({ ...tab, _uid: uid });
 }
 export async function dbGetAllOpenTables(uid: string): Promise<OpenTable[]> {
-  return getDB().openTables.where("_uid").equals(uid).toArray() as unknown as OpenTable[];
+  const db = await getDB();
+  return db.openTables
+    .where("_uid")
+    .equals(uid)
+    .toArray() as unknown as OpenTable[];
 }
-export async function dbDeleteOpenTable(id: string, uid: string): Promise<void> {
-  const rec = await getDB().openTables.get(id);
-  if (rec && rec._uid === uid) await getDB().openTables.delete(id);
+export async function dbDeleteOpenTable(
+  id: string,
+  uid: string
+): Promise<void> {
+  const db = await getDB();
+  const rec = await db.openTables.get(id);
+  if (rec && rec._uid === uid) await db.openTables.delete(id);
 }
