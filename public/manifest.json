@@ -1,7 +1,7 @@
 {
-  "name": "Servezy POS",
-  "short_name": "Servezy",
-  "description": "Smart POS for Indian food businesses",
+  "name": "Vynn POS",
+  "short_name": "Vynn",
+  "description": "Fast offline-first POS for Indian food businesses",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
