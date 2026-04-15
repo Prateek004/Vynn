@@ -52,7 +52,6 @@ const initialState: AppState = {
   toasts: [],
 };
 
-// ── Storage keys — all prefixed "vynn_" ──────────────────────────────────────
 const SESSION_KEY = "vynn_session";
 const CART_KEY = "vynn_cart";
 const UI_KEY = "vynn_ui";
@@ -69,7 +68,6 @@ function loadSession(): UserSession | null {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as UserSession;
-    // Validate minimum shape — if corrupt, wipe it
     if (!parsed.userId || !parsed.username) {
       localStorage.removeItem(SESSION_KEY);
       return null;
@@ -96,10 +94,7 @@ function loadCart(): CartItem[] {
   }
 }
 
-function saveUI(ui: {
-  serviceMode: ServiceMode;
-  tableNumber: number | undefined;
-}): void {
+function saveUI(ui: { serviceMode: ServiceMode; tableNumber: number | undefined }): void {
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));
   } catch {}
@@ -109,17 +104,13 @@ function loadUI(): { serviceMode: ServiceMode; tableNumber: number | undefined }
   try {
     const raw = localStorage.getItem(UI_KEY);
     return raw
-      ? (JSON.parse(raw) as {
-          serviceMode: ServiceMode;
-          tableNumber: number | undefined;
-        })
+      ? (JSON.parse(raw) as { serviceMode: ServiceMode; tableNumber: number | undefined })
       : { serviceMode: "dine_in", tableNumber: undefined };
   } catch {
     return { serviceMode: "dine_in", tableNumber: undefined };
   }
 }
 
-// ── Reducer ───────────────────────────────────────────────────────────────────
 type Action =
   | {
       type: "INIT_DONE";
@@ -180,10 +171,7 @@ function reducer(state: AppState, action: Action): AppState {
         inc.menuItemId,
         inc.selectedSize ?? "",
         inc.selectedPortion ?? "",
-        inc.selectedAddOns
-          .map((a) => a.id)
-          .sort()
-          .join(","),
+        inc.selectedAddOns.map((a) => a.id).sort().join(","),
         inc.notes ?? "",
       ].join("|");
       const idx = state.cart.findIndex(
@@ -192,10 +180,7 @@ function reducer(state: AppState, action: Action): AppState {
             c.menuItemId,
             c.selectedSize ?? "",
             c.selectedPortion ?? "",
-            c.selectedAddOns
-              .map((a) => a.id)
-              .sort()
-              .join(","),
+            c.selectedAddOns.map((a) => a.id).sort().join(","),
             c.notes ?? "",
           ].join("|") === key
       );
@@ -224,8 +209,9 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         cart: state.cart.filter((i) => i.cartId !== action.cartId),
       };
+    // FIX: CART_CLEAR no longer wipes tableNumber — table stays selected for next round
     case "CART_CLEAR":
-      return { ...state, cart: [], tableNumber: undefined };
+      return { ...state, cart: [] };
     case "ORDER_ADD":
       return { ...state, orders: [action.payload, ...state.orders] };
     case "MENU_ITEM_UPSERT":
@@ -284,7 +270,6 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-// ── Context interface ─────────────────────────────────────────────────────────
 interface AppContextValue {
   state: AppState;
   setSession: (s: UserSession | null) => void;
@@ -292,10 +277,7 @@ interface AppContextValue {
   logout: () => Promise<void>;
   setServiceMode: (m: ServiceMode) => void;
   setTableNumber: (n: number | undefined) => void;
-  loadMenuFromTemplate: (
-    businessType: string,
-    userId: string
-  ) => Promise<void>;
+  loadMenuFromTemplate: (businessType: string, userId: string) => Promise<void>;
   addToCart: (item: CartItem) => void;
   updateCartQty: (cartId: string, qty: number) => void;
   removeFromCart: (cartId: string) => void;
@@ -307,15 +289,13 @@ interface AppContextValue {
     cashReceivedPaise?: number;
     splitPayment?: { cashPaise: number; upiPaise: number };
   }) => Promise<Order>;
+  holdToTable: (tableNumber: number) => Promise<OpenTable>;
   upsertMenuItem: (item: MenuItem) => Promise<void>;
   deleteMenuItem: (id: string) => Promise<void>;
   upsertCategory: (cat: MenuCategory) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   showToast: (message: string, type?: Toast["type"]) => void;
-  openTableAddItems: (
-    tableNumber: number,
-    items: CartItem[]
-  ) => Promise<OpenTable>;
+  openTableAddItems: (tableNumber: number, items: CartItem[]) => Promise<OpenTable>;
   closeTable: (
     tableId: string,
     params: {
@@ -330,23 +310,21 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-// ── Helper: load all user data from IndexedDB ─────────────────────────────────
+// FIX: loads ALL orders (not just today) so everything is visible on every login
 async function loadUserData(uid: string) {
   const db = await import("@/lib/db");
   const [items, categories, orders, openTables] = await Promise.all([
     db.dbGetAllMenuItems(uid),
     db.dbGetAllCategories(uid),
-    db.dbGetTodaysOrders(uid),
+    db.dbGetAllOrders(uid),
     db.dbGetAllOpenTables(uid),
   ]);
   return { items, categories, orders, openTables };
 }
 
-// ── Provider ──────────────────────────────────────────────────────────────────
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // ── Boot: restore session + all data on app load ──────────────────────────
   useEffect(() => {
     async function init() {
       try {
@@ -369,9 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const { items, categories, orders, openTables } = await loadUserData(
-          session.userId
-        );
+        const { items, categories, orders, openTables } = await loadUserData(session.userId);
 
         dispatch({
           type: "INIT_DONE",
@@ -405,33 +381,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
-  // ── Auto-persist on every change ─────────────────────────────────────────
   useEffect(() => {
     if (!state.isLoading) saveCart(state.cart);
   }, [state.cart, state.isLoading]);
 
   useEffect(() => {
     if (!state.isLoading)
-      saveUI({
-        serviceMode: state.serviceMode,
-        tableNumber: state.tableNumber,
-      });
+      saveUI({ serviceMode: state.serviceMode, tableNumber: state.tableNumber });
   }, [state.serviceMode, state.tableNumber, state.isLoading]);
 
-  // Save session whenever it changes (catches Settings saves via setSession)
   useEffect(() => {
     if (!state.isLoading) saveSession(state.session);
   }, [state.session, state.isLoading]);
 
-  // ── Login: load all user data and persist session ─────────────────────────
   const login = useCallback(async (session: UserSession) => {
     saveSession(session);
     try {
       const cart = loadCart();
       const ui = loadUI();
-      const { items, categories, orders, openTables } = await loadUserData(
-        session.userId
-      );
+      const { items, categories, orders, openTables } = await loadUserData(session.userId);
       dispatch({
         type: "INIT_DONE",
         session,
@@ -461,7 +429,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ── Logout: wipe all local state ─────────────────────────────────────────
   const logout = useCallback(async () => {
     try {
       localStorage.removeItem(SESSION_KEY);
@@ -475,7 +442,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "LOGOUT" });
   }, []);
 
-  // setSession: used by Settings page — also persists to localStorage
   const setSession = useCallback((s: UserSession | null) => {
     saveSession(s);
     dispatch({ type: "SET_SESSION", payload: s });
@@ -487,8 +453,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const setTableNumber = useCallback(
-    (tableNumber: number | undefined) =>
-      dispatch({ type: "SET_TABLE", tableNumber }),
+    (tableNumber: number | undefined) => dispatch({ type: "SET_TABLE", tableNumber }),
     []
   );
 
@@ -501,11 +466,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const template = MENU_TEMPLATES[key] ?? MENU_TEMPLATES["restaurant"];
       await db.dbBulkSaveCategories(template.categories, userId);
       await db.dbBulkSaveMenuItems(template.items, userId);
-      dispatch({
-        type: "SET_MENU",
-        items: template.items,
-        categories: template.categories,
-      });
+      dispatch({ type: "SET_MENU", items: template.items, categories: template.categories });
     },
     []
   );
@@ -515,8 +476,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
   const updateCartQty = useCallback(
-    (cartId: string, qty: number) =>
-      dispatch({ type: "CART_QTY", cartId, qty }),
+    (cartId: string, qty: number) => dispatch({ type: "CART_QTY", cartId, qty }),
     []
   );
   const removeFromCart = useCallback(
@@ -533,22 +493,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cashReceivedPaise?: number;
       splitPayment?: { cashPaise: number; upiPaise: number };
     }): Promise<Order> => {
-      const {
-        paymentMethod,
-        discountType,
-        discountValue,
-        cashReceivedPaise,
-        splitPayment,
-      } = params;
+      const { paymentMethod, discountType, discountValue, cashReceivedPaise, splitPayment } = params;
       const snap = structuredClone(state.cart);
       if (snap.length === 0) throw new Error("Cart is empty");
 
       const subtotalPaise = snap.reduce(
         (s, i) =>
-          s +
-          (i.unitPricePaise +
-            i.selectedAddOns.reduce((x, a) => x + a.pricePaise, 0)) *
-            i.qty,
+          s + (i.unitPricePaise + i.selectedAddOns.reduce((x, a) => x + a.pricePaise, 0)) * i.qty,
         0
       );
       const discountPaise = calcDiscount(subtotalPaise, discountType, discountValue);
@@ -556,9 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const gstPercent = state.session?.gstPercent ?? 0;
       const gstPaise = calcGST(afterDiscount, gstPercent);
       const totalPaise = afterDiscount + gstPaise;
-      const changePaise = cashReceivedPaise
-        ? Math.max(0, cashReceivedPaise - totalPaise)
-        : 0;
+      const changePaise = cashReceivedPaise ? Math.max(0, cashReceivedPaise - totalPaise) : 0;
 
       const order: Order = {
         id: crypto.randomUUID(),
@@ -594,6 +543,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return order;
     },
     [state.cart, state.session, state.serviceMode, state.tableNumber]
+  );
+
+  // NEW: Hold current cart to an open table tab (for restaurant/cafe)
+  const holdToTable = useCallback(
+    async (tableNumber: number): Promise<OpenTable> => {
+      const snap = structuredClone(state.cart);
+      if (snap.length === 0) throw new Error("Cart is empty");
+      const uid = state.session?.userId ?? "default";
+      const db = await import("@/lib/db");
+      const ex = state.openTables.find((t) => t.tableNumber === tableNumber);
+      const now = new Date().toISOString();
+      const tab: OpenTable = ex
+        ? { ...ex, items: [...ex.items, ...snap], updatedAt: now }
+        : {
+            id: crypto.randomUUID(),
+            tableNumber,
+            items: snap,
+            openedAt: now,
+            updatedAt: now,
+          };
+      await db.dbSaveOpenTable(tab, uid);
+      dispatch({ type: "OPEN_TABLE_UPSERT", payload: tab });
+      dispatch({ type: "CART_CLEAR" });
+      return tab;
+    },
+    [state.cart, state.openTables, state.session]
   );
 
   const openTableAddItems = useCallback(
@@ -632,20 +607,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const tab = state.openTables.find((t) => t.id === tableId);
       if (!tab) throw new Error("Table not found");
 
-      const {
-        paymentMethod,
-        discountType,
-        discountValue,
-        cashReceivedPaise,
-        splitPayment,
-      } = params;
+      const { paymentMethod, discountType, discountValue, cashReceivedPaise, splitPayment } = params;
 
       const subtotalPaise = tab.items.reduce(
         (s, i) =>
-          s +
-          (i.unitPricePaise +
-            i.selectedAddOns.reduce((x, a) => x + a.pricePaise, 0)) *
-            i.qty,
+          s + (i.unitPricePaise + i.selectedAddOns.reduce((x, a) => x + a.pricePaise, 0)) * i.qty,
         0
       );
       const discountPaise = calcDiscount(subtotalPaise, discountType, discountValue);
@@ -653,9 +619,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const gstPercent = state.session?.gstPercent ?? 0;
       const gstPaise = calcGST(afterDiscount, gstPercent);
       const totalPaise = afterDiscount + gstPaise;
-      const changePaise = cashReceivedPaise
-        ? Math.max(0, cashReceivedPaise - totalPaise)
-        : 0;
+      const changePaise = cashReceivedPaise ? Math.max(0, cashReceivedPaise - totalPaise) : 0;
 
       const order: Order = {
         id: crypto.randomUUID(),
@@ -758,6 +722,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeFromCart,
         clearCart,
         placeOrder,
+        holdToTable,
         upsertMenuItem,
         deleteMenuItem,
         upsertCategory,
