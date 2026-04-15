@@ -4,36 +4,71 @@ import { useApp } from "@/lib/store/AppContext";
 import AppShell from "@/components/ui/AppShell";
 import { fmtRupee, fmtTime, todayStr, PAY_LABEL, SERVICE_LABEL } from "@/lib/utils";
 import type { Order, OpenTable, CartItem } from "@/lib/types";
-import { TrendingUp, Banknote, ShoppingBag, Cloud, CloudOff, RefreshCw, ChevronDown, ChevronUp, Plus, CheckCircle, Clock } from "lucide-react";
+import {
+  TrendingUp, Banknote, ShoppingBag, Cloud, CloudOff,
+  RefreshCw, ChevronDown, ChevronUp, Plus, CheckCircle, Clock,
+} from "lucide-react";
 import { isSupabaseEnabled } from "@/lib/supabase/client";
 
 // ── Close Table Modal ─────────────────────────────────────────────────────────
-function CloseTableModal({ tab, onClose, onConfirm }: {
+function CloseTableModal({
+  tab, onClose, onConfirm,
+}: {
   tab: OpenTable;
   onClose: () => void;
-  onConfirm: (params: { paymentMethod: "cash" | "upi" | "split"; discountType: "flat" | "percent"; discountValue: number; cashReceivedPaise?: number }) => void;
+  onConfirm: (params: {
+    paymentMethod: "cash" | "upi" | "split";
+    discountType: "flat" | "percent";
+    discountValue: number;
+    cashReceivedPaise?: number;
+    splitPayment?: { cashPaise: number; upiPaise: number };
+  }) => void;
 }) {
   const { state } = useApp();
   const [method, setMethod] = useState<"cash" | "upi" | "split">("cash");
   const [discountType, setDiscountType] = useState<"flat" | "percent">("flat");
   const [discountValue, setDiscountValue] = useState(0);
   const [cashReceived, setCashReceived] = useState("");
+  const [splitCash, setSplitCash] = useState("");
+  const [splitUpi, setSplitUpi] = useState("");
 
   const subtotal = tab.items.reduce((s, i) => {
     const ao = i.selectedAddOns.reduce((x, a) => x + a.pricePaise, 0);
     return s + (i.unitPricePaise + ao) * i.qty;
   }, 0);
   const gstPct = state.session?.gstPercent ?? 0;
-  const discount = discountType === "flat" ? discountValue * 100 : Math.round(subtotal * discountValue / 100);
+  const discount = discountType === "flat"
+    ? Math.min(discountValue * 100, subtotal)
+    : Math.round(subtotal * Math.min(discountValue, 100) / 100);
   const afterDisc = Math.max(0, subtotal - discount);
   const gst = Math.round(afterDisc * gstPct / 100);
   const total = afterDisc + gst;
   const cashPaise = Math.round(parseFloat(cashReceived || "0") * 100);
+  const splitCashP = Math.round(parseFloat(splitCash || "0") * 100);
+  const splitUpiP = Math.round(parseFloat(splitUpi || "0") * 100);
   const change = Math.max(0, cashPaise - total);
+  const splitTotal = splitCashP + splitUpiP;
+  const splitOk = splitTotal >= total;
+
+  const canConfirm =
+    method === "upi" ||
+    (method === "cash" && cashPaise >= total) ||
+    (method === "split" && splitOk);
+
+  const handleConfirm = () => {
+    if (!canConfirm) return;
+    onConfirm({
+      paymentMethod: method,
+      discountType,
+      discountValue,
+      cashReceivedPaise: method === "cash" ? cashPaise || undefined : undefined,
+      splitPayment: method === "split" ? { cashPaise: splitCashP, upiPaise: splitUpiP } : undefined,
+    });
+  };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", padding: 24 }}>
+      <div style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "92vh", overflowY: "auto", padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1C1410" }}>Close Table {tab.tableNumber}</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#9C8E87" }}>✕</button>
@@ -44,8 +79,8 @@ function CloseTableModal({ tab, onClose, onConfirm }: {
           <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 10 }}>ORDER SUMMARY</p>
           {tab.items.map((item, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-              <span style={{ color: "#1C1410" }}>{item.qty}× {item.name}</span>
-              <span style={{ color: "#5C4E47", fontWeight: 500 }}>{fmtRupee((item.unitPricePaise + item.selectedAddOns.reduce((s,a)=>s+a.pricePaise,0)) * item.qty)}</span>
+              <span style={{ color: "#1C1410" }}>{item.qty}× {item.name}{item.selectedPortion ? ` (${item.selectedPortion})` : ""}</span>
+              <span style={{ color: "#5C4E47", fontWeight: 500 }}>{fmtRupee((item.unitPricePaise + item.selectedAddOns.reduce((s, a) => s + a.pricePaise, 0)) * item.qty)}</span>
             </div>
           ))}
           <div style={{ borderTop: "0.5px solid rgba(28,20,16,0.1)", marginTop: 10, paddingTop: 10 }}>
@@ -58,24 +93,27 @@ function CloseTableModal({ tab, onClose, onConfirm }: {
 
         {/* Discount */}
         <div style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 8 }}>DISCOUNT</p>
+          <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 8 }}>DISCOUNT (OPTIONAL)</p>
           <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
             {(["flat", "percent"] as const).map((t) => (
-              <button key={t} onClick={() => setDiscountType(t)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `1.5px solid ${discountType===t?"#B24B2F":"#F3EDE6"}`, background: discountType===t?"#FAF0EB":"white", color: discountType===t?"#B24B2F":"#9C8E87", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              <button key={t} onClick={() => setDiscountType(t)}
+                style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `1.5px solid ${discountType === t ? "#B24B2F" : "#F3EDE6"}`, background: discountType === t ? "#FAF0EB" : "white", color: discountType === t ? "#B24B2F" : "#9C8E87", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                 {t === "flat" ? "₹ Flat" : "% Percent"}
               </button>
             ))}
           </div>
-          <input type="number" placeholder="0" value={discountValue || ""} onChange={(e) => setDiscountValue(Number(e.target.value))}
-            style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid #F3EDE6", padding: "0 14px", fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+          <input type="number" placeholder="0" value={discountValue || ""}
+            onChange={(e) => setDiscountValue(Number(e.target.value))}
+            style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid #F3EDE6", padding: "0 14px", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
         </div>
 
         {/* Payment method */}
         <div style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 8 }}>PAYMENT</p>
+          <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 8 }}>PAYMENT METHOD</p>
           <div style={{ display: "flex", gap: 8 }}>
             {(["cash", "upi", "split"] as const).map((m) => (
-              <button key={m} onClick={() => setMethod(m)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `1.5px solid ${method===m?"#B24B2F":"#F3EDE6"}`, background: method===m?"#FAF0EB":"white", color: method===m?"#B24B2F":"#9C8E87", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize" }}>
+              <button key={m} onClick={() => setMethod(m)}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1.5px solid ${method === m ? "#B24B2F" : "#F3EDE6"}`, background: method === m ? "#FAF0EB" : "white", color: method === m ? "#B24B2F" : "#9C8E87", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize" }}>
                 {m}
               </button>
             ))}
@@ -85,14 +123,47 @@ function CloseTableModal({ tab, onClose, onConfirm }: {
         {method === "cash" && (
           <div style={{ marginBottom: 12 }}>
             <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 8 }}>CASH RECEIVED</p>
-            <input type="number" placeholder={`${total / 100}`} value={cashReceived} onChange={(e) => setCashReceived(e.target.value)}
-              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid #F3EDE6", padding: "0 14px", fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+            <input type="number" placeholder={String(total / 100)} value={cashReceived}
+              onChange={(e) => setCashReceived(e.target.value)}
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid #F3EDE6", padding: "0 14px", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
             {change > 0 && <p style={{ fontSize: 12, color: "#3E9B5A", marginTop: 4 }}>Change: {fmtRupee(change)}</p>}
+            {cashReceived && cashPaise < total && (
+              <p style={{ fontSize: 12, color: "#dc2626", marginTop: 4 }}>Short by {fmtRupee(total - cashPaise)}</p>
+            )}
           </div>
         )}
 
-        <button onClick={() => onConfirm({ paymentMethod: method, discountType, discountValue, cashReceivedPaise: cashPaise || undefined })}
-          style={{ width: "100%", height: 48, background: "#1C1410", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+        {method === "split" && (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 11, letterSpacing: "0.1em", color: "#9C8E87", marginBottom: 8 }}>SPLIT PAYMENT</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 11, color: "#9C8E87", marginBottom: 4 }}>Cash ₹</p>
+                <input type="number" placeholder="0" value={splitCash}
+                  onChange={(e) => setSplitCash(e.target.value)}
+                  style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid #F3EDE6", padding: "0 14px", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 11, color: "#9C8E87", marginBottom: 4 }}>UPI ₹</p>
+                <input type="number" placeholder="0" value={splitUpi}
+                  onChange={(e) => setSplitUpi(e.target.value)}
+                  style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid #F3EDE6", padding: "0 14px", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ padding: "8px 12px", borderRadius: 8, background: splitOk ? "#f0fdf4" : "#fafafa", color: splitOk ? "#16a34a" : "#9C8E87", fontSize: 12, fontWeight: 600 }}>
+              {splitOk ? `Covered ✓ (${fmtRupee(splitTotal)})` : `Need ${fmtRupee(total)} · have ${fmtRupee(splitTotal)}`}
+            </div>
+          </div>
+        )}
+
+        {method === "upi" && (
+          <div style={{ marginBottom: 12, padding: "12px", background: "#eff6ff", borderRadius: 8, textAlign: "center", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
+            📱 Collect {fmtRupee(total)} via UPI
+          </div>
+        )}
+
+        <button onClick={handleConfirm} disabled={!canConfirm}
+          style={{ width: "100%", height: 48, background: canConfirm ? "#1C1410" : "#ccc", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: canConfirm ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
           Collect {fmtRupee(total)} & Close Table
         </button>
       </div>
@@ -101,7 +172,9 @@ function CloseTableModal({ tab, onClose, onConfirm }: {
 }
 
 // ── Add Items Modal ───────────────────────────────────────────────────────────
-function AddItemsModal({ tab, onClose, onAdd }: {
+function AddItemsModal({
+  tab, onClose, onAdd,
+}: {
   tab: OpenTable;
   onClose: () => void;
   onAdd: (items: CartItem[]) => void;
@@ -158,7 +231,7 @@ function AddItemsModal({ tab, onClose, onAdd }: {
           <div style={{ padding: 16, borderTop: "0.5px solid #F3EDE6" }}>
             <button onClick={() => onAdd(localCart)}
               style={{ width: "100%", height: 48, background: "#1C1410", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              Add {localCart.reduce((s,i)=>s+i.qty,0)} items · {fmtRupee(totalNew)}
+              Add {localCart.reduce((s, i) => s + i.qty, 0)} items · {fmtRupee(totalNew)}
             </button>
           </div>
         )}
@@ -181,8 +254,11 @@ export default function OrdersPage() {
   const isOwner = state.session?.role === "owner";
   const openTableEnabled = state.session?.stockSettings?.openTableBilling ?? false;
 
+  // FIX: reload all orders from DB whenever state.orders changes
   useEffect(() => {
-    import("@/lib/db").then(({ dbGetAllOrders }) => dbGetAllOrders(uid).then(setAllOrders));
+    import("@/lib/db").then(({ dbGetAllOrders }) =>
+      dbGetAllOrders(uid).then(setAllOrders)
+    );
   }, [state.orders, uid]);
 
   const today = todayStr();
@@ -203,17 +279,23 @@ export default function OrdersPage() {
   const handleAddItems = async (items: CartItem[]) => {
     if (!addingTo) return;
     await openTableAddItems(addingTo.tableNumber, items);
-    showToast(`Added ${items.reduce((s,i)=>s+i.qty,0)} items to Table ${addingTo.tableNumber} ✓`);
+    showToast(`Added ${items.reduce((s, i) => s + i.qty, 0)} items to Table ${addingTo.tableNumber} ✓`);
     setAddingTo(null);
   };
 
-  const handleCloseTable = async (params: { paymentMethod: "cash"|"upi"|"split"; discountType: "flat"|"percent"; discountValue: number; cashReceivedPaise?: number }) => {
+  const handleCloseTable = async (params: {
+    paymentMethod: "cash" | "upi" | "split";
+    discountType: "flat" | "percent";
+    discountValue: number;
+    cashReceivedPaise?: number;
+    splitPayment?: { cashPaise: number; upiPaise: number };
+  }) => {
     if (!closingTab) return;
     try {
       await closeTable(closingTab.id, params);
       showToast(`Table ${closingTab.tableNumber} closed & billed ✓`);
       setClosingTab(null);
-    } catch (e) {
+    } catch {
       showToast("Failed to close table", "error");
     }
   };
@@ -231,7 +313,6 @@ export default function OrdersPage() {
             )}
           </div>
 
-          {/* Tab switch: Orders / Open Tables */}
           {openTableEnabled && (
             <div className="flex rounded-xl bg-gray-100 p-1 mt-3">
               {(["orders", "tables"] as const).map((t) => (
@@ -253,7 +334,7 @@ export default function OrdersPage() {
                 <div className="flex flex-col items-center justify-center py-16 text-gray-300">
                   <Clock size={48} className="mb-3" />
                   <p className="font-semibold text-gray-400">No open tables</p>
-                  <p className="text-sm mt-1">Start a table tab from the POS screen</p>
+                  <p className="text-sm mt-1">Hold a cart to a table from the POS screen</p>
                 </div>
               ) : (
                 state.openTables.map((openTab) => {
@@ -271,32 +352,30 @@ export default function OrdersPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-base font-black text-gray-900">Table {openTab.tableNumber}</span>
                             <span className="text-[10px] font-bold bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Clock size={9}/> {dur}m open
+                              <Clock size={9} /> {dur}m open
                             </span>
                           </div>
                           <p className="text-xs text-gray-400 mt-0.5">{itemCount} item{itemCount !== 1 ? "s" : ""} · Running bill: <span className="font-bold text-gray-700">{fmtRupee(tabTotal)}</span></p>
                         </div>
                       </div>
 
-                      {/* Items list */}
                       <div className="px-4 pb-2 space-y-1">
                         {openTab.items.map((item, i) => (
                           <div key={i} className="flex justify-between text-sm text-gray-600">
-                            <span>{item.qty}× {item.name}</span>
-                            <span className="font-medium">{fmtRupee((item.unitPricePaise + item.selectedAddOns.reduce((s,a)=>s+a.pricePaise,0)) * item.qty)}</span>
+                            <span>{item.qty}× {item.name}{item.selectedPortion ? ` (${item.selectedPortion})` : ""}</span>
+                            <span className="font-medium">{fmtRupee((item.unitPricePaise + item.selectedAddOns.reduce((s, a) => s + a.pricePaise, 0)) * item.qty)}</span>
                           </div>
                         ))}
                       </div>
 
-                      {/* Actions */}
                       <div className="px-4 pb-4 pt-2 flex gap-2">
                         <button onClick={() => setAddingTo(openTab)}
                           className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border-2 border-primary-200 text-primary-600 text-sm font-bold press">
-                          <Plus size={14}/> Add Items
+                          <Plus size={14} /> Add Items
                         </button>
                         <button onClick={() => setClosingTab(openTab)}
                           className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl bg-primary-500 text-white text-sm font-bold press shadow-sm">
-                          <CheckCircle size={14}/> Close & Bill
+                          <CheckCircle size={14} /> Close & Bill
                         </button>
                       </div>
                     </div>
