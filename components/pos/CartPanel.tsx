@@ -2,7 +2,10 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/lib/store/AppContext";
 import { fmtRupee, calcDiscount, calcGST } from "@/lib/utils";
-import { Minus, Plus, Trash2, Tag, UtensilsCrossed, ShoppingBag, Bike, LayoutGrid } from "lucide-react";
+import {
+  Minus, Plus, Trash2, Tag, UtensilsCrossed, ShoppingBag,
+  Bike, LayoutGrid, BookmarkCheck,
+} from "lucide-react";
 import CheckoutModal from "./CheckoutModal";
 import type { ServiceMode } from "@/lib/types";
 
@@ -15,19 +18,21 @@ const SERVICE_MODES: { mode: ServiceMode; label: string; Icon: React.ElementType
 interface Props { onClose?: () => void }
 
 export default function CartPanel({ onClose }: Props) {
-  const { state, updateCartQty, removeFromCart, clearCart, setServiceMode, setTableNumber } = useApp();
+  const { state, updateCartQty, removeFromCart, clearCart, setServiceMode, setTableNumber, holdToTable, showToast } = useApp();
   const { cart, session, serviceMode, tableNumber } = state;
 
   const ss = session?.stockSettings;
-  const tablesEnabled = ss?.tablesEnabled ?? false;
-  const tableCount    = ss?.tableCount ?? 10;
+  const tablesEnabled      = ss?.tablesEnabled ?? false;
+  const tableCount         = ss?.tableCount ?? 10;
+  const openTableBilling   = ss?.openTableBilling ?? false;
 
   const [discountType, setDiscountType] = useState<"flat" | "percent">("flat");
   const [discountInput, setDiscountInput] = useState("");
   const [showCheckout, setShowCheckout] = useState(false);
   const [showTablePicker, setShowTablePicker] = useState(false);
+  const [holding, setHolding] = useState(false);
 
-  // FIX: reset discount whenever cart empties (post-order, post-closeTable, manual clear)
+  // Reset discount when cart empties
   useEffect(() => { if (cart.length === 0) setDiscountInput(""); }, [cart.length]);
 
   const subtotalPaise = cart.reduce((sum, item) => {
@@ -43,11 +48,30 @@ export default function CartPanel({ onClose }: Props) {
   const totalPaise    = afterDiscount + gstPaise;
   const itemCount     = cart.reduce((s, i) => s + i.qty, 0);
 
+  // Hold to table: sends current cart to open table tab, clears cart
+  const handleHold = async () => {
+    if (!tableNumber) {
+      showToast("Select a table first to hold", "error");
+      return;
+    }
+    if (cart.length === 0) return;
+    setHolding(true);
+    try {
+      await holdToTable(tableNumber);
+      showToast(`Cart held on Table ${tableNumber} ✓`);
+      onClose?.();
+    } catch {
+      showToast("Failed to hold order", "error");
+    } finally {
+      setHolding(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col h-full bg-white overflow-hidden">
 
-        {/* Service mode */}
+        {/* Service mode tabs */}
         <div className="flex gap-1 px-3 pt-3 pb-2 shrink-0">
           {SERVICE_MODES.map(({ mode, label, Icon }) => (
             <button key={mode} onClick={() => setServiceMode(mode)}
@@ -57,7 +81,7 @@ export default function CartPanel({ onClose }: Props) {
           ))}
         </div>
 
-        {/* Table picker */}
+        {/* Table picker — shown for dine_in when tables are enabled */}
         {tablesEnabled && serviceMode === "dine_in" && (
           <div className="px-3 pb-2 shrink-0">
             <button onClick={() => setShowTablePicker(!showTablePicker)}
@@ -68,12 +92,25 @@ export default function CartPanel({ onClose }: Props) {
             </button>
             {showTablePicker && (
               <div className="mt-2 grid grid-cols-5 gap-1.5">
-                {Array.from({ length: tableCount }, (_, i) => i + 1).map((n) => (
-                  <button key={n} onClick={() => { setTableNumber(n === tableNumber ? undefined : n); setShowTablePicker(false); }}
-                    className={`h-9 rounded-xl text-sm font-bold border-2 press transition-all ${tableNumber === n ? "border-primary-500 bg-primary-500 text-white" : "border-gray-200 text-gray-700"}`}>
-                    {n}
-                  </button>
-                ))}
+                {Array.from({ length: tableCount }, (_, i) => i + 1).map((n) => {
+                  const isOpen = state.openTables.some((t) => t.tableNumber === n);
+                  return (
+                    <button key={n}
+                      onClick={() => { setTableNumber(n === tableNumber ? undefined : n); setShowTablePicker(false); }}
+                      className={`h-9 rounded-xl text-sm font-bold border-2 press transition-all relative ${
+                        tableNumber === n
+                          ? "border-primary-500 bg-primary-500 text-white"
+                          : isOpen
+                          ? "border-amber-400 bg-amber-50 text-amber-700"
+                          : "border-gray-200 text-gray-700"
+                      }`}>
+                      {n}
+                      {isOpen && tableNumber !== n && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full" />
+                      )}
+                    </button>
+                  );
+                })}
                 {tableNumber && (
                   <button onClick={() => { setTableNumber(undefined); setShowTablePicker(false); }}
                     className="h-9 rounded-xl text-xs font-bold border-2 border-red-200 text-red-500 press col-span-2">
@@ -97,7 +134,7 @@ export default function CartPanel({ onClose }: Props) {
           )}
         </div>
 
-        {/* Items */}
+        {/* Cart items */}
         <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-300 select-none">
@@ -137,9 +174,10 @@ export default function CartPanel({ onClose }: Props) {
           )}
         </div>
 
-        {/* Summary + Checkout */}
+        {/* Summary + actions */}
         {cart.length > 0 && (
           <div className="border-t border-gray-100 px-4 pt-3 pb-4 space-y-3 shrink-0 bg-white">
+            {/* Discount row */}
             <div className="flex items-center gap-2">
               <Tag size={14} className="text-gray-400 shrink-0" />
               <div className="flex rounded-xl border border-gray-200 overflow-hidden shrink-0">
@@ -150,6 +188,8 @@ export default function CartPanel({ onClose }: Props) {
                 placeholder={discountType === "flat" ? "Discount ₹" : "Discount %"}
                 value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} />
             </div>
+
+            {/* Totals */}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between text-gray-500"><span>Subtotal</span><span className="font-semibold">{fmtRupee(subtotalPaise)}</span></div>
               {discountPaise > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span className="font-semibold">−{fmtRupee(discountPaise)}</span></div>}
@@ -158,6 +198,19 @@ export default function CartPanel({ onClose }: Props) {
                 <span>Total</span><span className="text-primary-500">{fmtRupee(totalPaise)}</span>
               </div>
             </div>
+
+            {/* Hold button — only for restaurant/cafe with openTableBilling ON and dine_in mode */}
+            {openTableBilling && serviceMode === "dine_in" && (
+              <button
+                onClick={handleHold}
+                disabled={holding || !tableNumber}
+                className="w-full h-11 flex items-center justify-center gap-2 rounded-2xl border-2 border-amber-400 text-amber-700 font-bold text-sm press disabled:opacity-40">
+                <BookmarkCheck size={16} />
+                {holding ? "Holding…" : tableNumber ? `Hold on Table ${tableNumber}` : "Select table to Hold"}
+              </button>
+            )}
+
+            {/* Checkout button */}
             <button onClick={() => setShowCheckout(true)} className="w-full h-12 bg-primary-500 text-white rounded-2xl font-bold press shadow-md">
               Checkout · {fmtRupee(totalPaise)}
             </button>
@@ -168,9 +221,13 @@ export default function CartPanel({ onClose }: Props) {
       <CheckoutModal
         open={showCheckout}
         onClose={() => { setShowCheckout(false); onClose?.(); }}
-        totalPaise={totalPaise} subtotalPaise={subtotalPaise}
-        discountPaise={discountPaise} gstPaise={gstPaise} gstPercent={gstPercent}
-        discountType={discountType} discountValue={discountValue}
+        totalPaise={totalPaise}
+        subtotalPaise={subtotalPaise}
+        discountPaise={discountPaise}
+        gstPaise={gstPaise}
+        gstPercent={gstPercent}
+        discountType={discountType}
+        discountValue={discountValue}
       />
     </>
   );
