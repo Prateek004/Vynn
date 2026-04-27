@@ -19,6 +19,7 @@ import type {
 } from "@/lib/types";
 import { calcDiscount, calcGST, generateBillNumber } from "@/lib/utils";
 import { MENU_TEMPLATES } from "@/lib/utils/menuTemplates";
+import { getSupabase, isSupabaseEnabled } from "@/lib/supabase/client";
 
 export interface Toast {
   id: string;
@@ -37,6 +38,7 @@ interface AppState {
   openTables: OpenTable[];
   isLoading: boolean;
   toasts: Toast[];
+  activeStockTab: string;
 }
 
 const initialState: AppState = {
@@ -50,6 +52,7 @@ const initialState: AppState = {
   openTables: [],
   isLoading: true,
   toasts: [],
+  activeStockTab: "menu",
 };
 
 const SESSION_KEY = "vynn_session";
@@ -94,21 +97,108 @@ function loadCart(): CartItem[] {
   }
 }
 
-function saveUI(ui: { serviceMode: ServiceMode; tableNumber: number | undefined }): void {
+interface UIState {
+  serviceMode: ServiceMode;
+  tableNumber: number | undefined;
+  activeStockTab: string;
+}
+
+function saveUI(ui: UIState): void {
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));
   } catch {}
 }
 
-function loadUI(): { serviceMode: ServiceMode; tableNumber: number | undefined } {
+function loadUI(): UIState {
   try {
     const raw = localStorage.getItem(UI_KEY);
-    return raw
-      ? (JSON.parse(raw) as { serviceMode: ServiceMode; tableNumber: number | undefined })
-      : { serviceMode: "dine_in", tableNumber: undefined };
+    if (!raw) return { serviceMode: "dine_in", tableNumber: undefined, activeStockTab: "menu" };
+    const parsed = JSON.parse(raw) as Partial<UIState>;
+    return {
+      serviceMode: parsed.serviceMode ?? "dine_in",
+      tableNumber: parsed.tableNumber,
+      activeStockTab: parsed.activeStockTab ?? "menu",
+    };
   } catch {
-    return { serviceMode: "dine_in", tableNumber: undefined };
+    return { serviceMode: "dine_in", tableNumber: undefined, activeStockTab: "menu" };
   }
+}
+
+async function syncSessionToSupabase(session: UserSession): Promise<void> {
+  if (!isSupabaseEnabled()) return;
+  try {
+    const sb = getSupabase();
+    if (!sb) return;
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    if (!user) return;
+    await sb
+      .from("profiles")
+      .update({
+        gst_percent: session.gstPercent,
+        upi_id: session.upiId ?? null,
+      })
+      .eq("id", user.id);
+  } catch {}
+}
+
+async function restoreSessionFromSupabase(session: UserSession): Promise<UserSession> {
+  if (!isSupabaseEnabled()) return session;
+  try {
+    const sb = getSupabase();
+    if (!sb) return session;
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    if (!user) return session;
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("gst_percent, upi_id")
+      .eq("id", user.id)
+      .single();
+    if (!profile) return session;
+    return {
+      ...session,
+      gstPercent: profile.gst_percent ?? session.gstPercent,
+      upiId: profile.upi_id ?? session.upiId,
+    };
+  } catch {
+    return session;
+  }
+}
+
+async function syncOpenTablesFromSupabase(uid: string): Promise<void> {
+  if (!isSupabaseEnabled()) return;
+  try {
+    const sb = getSupabase();
+    if (!sb) return;
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    if (!user) return;
+    const { data: remoteTables, error } = await sb
+      .from("open_tables")
+      .select("*")
+      .eq("user_id", user.id);
+    if (error) return;
+    if (!remoteTables || remoteTables.length === 0) return;
+    const db = await import("@/lib/db");
+    const localTables = await db.dbGetAllOpenTables(uid);
+    const localMap = new Map(localTables.map((t) => [t.id, t]));
+    for (const remote of remoteTables) {
+      if (!localMap.has(remote.id)) {
+        const tab: OpenTable = {
+          id: remote.id,
+          tableNumber: remote.table_number,
+          items: remote.items ?? [],
+          openedAt: remote.opened_at,
+          updatedAt: remote.updated_at,
+        };
+        await db.dbSaveOpenTable(tab, uid);
+      }
+    }
+  } catch {}
 }
 
 type Action =
@@ -122,6 +212,7 @@ type Action =
       cart: CartItem[];
       serviceMode: ServiceMode;
       tableNumber: number | undefined;
+      activeStockTab: string;
     }
   | { type: "SET_SESSION"; payload: UserSession | null }
   | { type: "SET_MENU"; items: MenuItem[]; categories: MenuCategory[] }
@@ -140,6 +231,7 @@ type Action =
   | { type: "TOAST_REMOVE"; id: string }
   | { type: "OPEN_TABLE_UPSERT"; payload: OpenTable }
   | { type: "OPEN_TABLE_REMOVE"; id: string }
+  | { type: "SET_ACTIVE_STOCK_TAB"; tab: string }
   | { type: "LOGOUT" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -155,6 +247,7 @@ function reducer(state: AppState, action: Action): AppState {
         cart: action.cart,
         serviceMode: action.serviceMode,
         tableNumber: action.tableNumber,
+        activeStockTab: action.activeStockTab,
         isLoading: false,
       };
     case "SET_SESSION":
@@ -165,6 +258,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, serviceMode: action.mode };
     case "SET_TABLE":
       return { ...state, tableNumber: action.tableNumber };
+    case "SET_ACTIVE_STOCK_TAB":
+      return { ...state, activeStockTab: action.tab };
     case "CART_ADD": {
       const inc = action.payload;
       const key = [
@@ -209,7 +304,6 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         cart: state.cart.filter((i) => i.cartId !== action.cartId),
       };
-    // FIX: CART_CLEAR no longer wipes tableNumber — table stays selected for next round
     case "CART_CLEAR":
       return { ...state, cart: [] };
     case "ORDER_ADD":
@@ -306,11 +400,11 @@ interface AppContextValue {
       splitPayment?: { cashPaise: number; upiPaise: number };
     }
   ) => Promise<Order>;
+  setActiveStockTab: (tab: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-// FIX: loads ALL orders (not just today) so everything is visible on every login
 async function loadUserData(uid: string) {
   const db = await import("@/lib/db");
   const [items, categories, orders, openTables] = await Promise.all([
@@ -341,8 +435,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             orders: [],
             openTables: [],
             cart: [],
-            serviceMode: "dine_in",
-            tableNumber: undefined,
+            serviceMode: ui.serviceMode,
+            tableNumber: ui.tableNumber,
+            activeStockTab: ui.activeStockTab,
           });
           return;
         }
@@ -359,6 +454,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cart,
           serviceMode: ui.serviceMode,
           tableNumber: ui.tableNumber,
+          activeStockTab: ui.activeStockTab,
         });
 
         import("@/lib/supabase/sync")
@@ -375,6 +471,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cart: [],
           serviceMode: "dine_in",
           tableNumber: undefined,
+          activeStockTab: "menu",
         });
       }
     }
@@ -387,8 +484,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!state.isLoading)
-      saveUI({ serviceMode: state.serviceMode, tableNumber: state.tableNumber });
-  }, [state.serviceMode, state.tableNumber, state.isLoading]);
+      saveUI({
+        serviceMode: state.serviceMode,
+        tableNumber: state.tableNumber,
+        activeStockTab: state.activeStockTab,
+      });
+  }, [state.serviceMode, state.tableNumber, state.activeStockTab, state.isLoading]);
 
   useEffect(() => {
     if (!state.isLoading) saveSession(state.session);
@@ -400,9 +501,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const cart = loadCart();
       const ui = loadUI();
       const { items, categories, orders, openTables } = await loadUserData(session.userId);
+
+      await syncOpenTablesFromSupabase(session.userId).catch(() => {});
+      const restoredSession = await restoreSessionFromSupabase(session);
+
       dispatch({
         type: "INIT_DONE",
-        session,
+        session: restoredSession,
         items,
         categories,
         orders,
@@ -410,9 +515,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cart,
         serviceMode: ui.serviceMode,
         tableNumber: ui.tableNumber,
+        activeStockTab: ui.activeStockTab,
       });
+
+      saveSession(restoredSession);
+
       import("@/lib/supabase/sync")
-        .then(({ backgroundSync }) => backgroundSync(session.userId))
+        .then(({ backgroundSync }) => backgroundSync(restoredSession.userId))
         .catch(() => {});
     } catch {
       dispatch({
@@ -425,6 +534,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cart: [],
         serviceMode: "dine_in",
         tableNumber: undefined,
+        activeStockTab: "menu",
       });
     }
   }, []);
@@ -445,6 +555,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setSession = useCallback((s: UserSession | null) => {
     saveSession(s);
     dispatch({ type: "SET_SESSION", payload: s });
+    if (s) {
+      syncSessionToSupabase(s).catch(() => {});
+    }
   }, []);
 
   const setServiceMode = useCallback(
@@ -454,6 +567,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTableNumber = useCallback(
     (tableNumber: number | undefined) => dispatch({ type: "SET_TABLE", tableNumber }),
+    []
+  );
+
+  const setActiveStockTab = useCallback(
+    (tab: string) => dispatch({ type: "SET_ACTIVE_STOCK_TAB", tab }),
     []
   );
 
@@ -545,7 +663,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [state.cart, state.session, state.serviceMode, state.tableNumber]
   );
 
-  // NEW: Hold current cart to an open table tab (for restaurant/cafe)
   const holdToTable = useCallback(
     async (tableNumber: number): Promise<OpenTable> => {
       const snap = structuredClone(state.cart);
@@ -730,6 +847,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         showToast,
         openTableAddItems,
         closeTable,
+        setActiveStockTab,
       }}
     >
       {children}
