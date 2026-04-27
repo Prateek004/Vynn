@@ -1,15 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, ClipboardList, UtensilsCrossed, Settings, Package } from "lucide-react";
+import { ShoppingCart, ClipboardList, Settings, Package } from "lucide-react";
 import { useApp } from "@/lib/store/AppContext";
 
 const TABS = [
-  { href: "/pos",      label: "POS",      Icon: ShoppingCart    },
-  { href: "/orders",   label: "Orders",   Icon: ClipboardList   },
-  { href: "/menu",     label: "Menu",     Icon: UtensilsCrossed },
-  { href: "/stock",    label: "Stock",    Icon: Package         },
-  { href: "/settings", label: "Settings", Icon: Settings        },
+  { href: "/pos",      label: "POS",      Icon: ShoppingCart  },
+  { href: "/orders",   label: "Orders",   Icon: ClipboardList },
+  { href: "/stock",    label: "Stock",    Icon: Package       },
+  { href: "/settings", label: "Settings", Icon: Settings      },
 ];
 
 export default function BottomNav() {
@@ -23,9 +22,16 @@ export default function BottomNav() {
         {TABS.map(({ href, label, Icon }) => {
           const active = pathname.startsWith(href);
           return (
-            <Link key={href} href={href}
-              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 relative transition-colors active:bg-gray-50 ${active ? "text-primary-500" : "text-gray-400"}`}>
-              {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-b-full" />}
+            <Link
+              key={href}
+              href={href}
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 relative transition-colors active:bg-gray-50 ${
+                active ? "text-primary-500" : "text-gray-400"
+              }`}
+            >
+              {active && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-b-full" />
+              )}
               <div className="relative">
                 <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
                 {href === "/pos" && cartCount > 0 && (
