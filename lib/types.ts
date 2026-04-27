@@ -11,6 +11,7 @@ export interface StockSettings {
   barEnabled: boolean;
   tableCount: number;
   openTableBilling?: boolean;
+  activeTab?: string;
 }
 
 export interface UserSession {
@@ -83,6 +84,8 @@ export interface FinishedGood {
   expiryDate?: string;
   purchasedAt: string;
   updatedAt: string;
+  isInBilling?: boolean;
+  billingMenuItemId?: string;
 }
 
 export interface CartItem {
