@@ -99,7 +99,7 @@ export default function POSPage() {
           {cartCount > 0 && (
             <button
               onClick={() => setCartOpen(true)}
-              className="lg:hidden absolute bottom-4 left-3 right-3 z-30 bg-primary-500 rounded-2xl px-5 py-3 flex items-center shadow-xl press"
+              className="lg:hidden absolute bottom-20 left-3 right-3 z-30 bg-primary-500 rounded-2xl px-5 py-3 flex items-center shadow-xl press"
             >
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center mr-3 shrink-0">
                 <span className="text-white text-sm font-black">{cartCount}</span>
