@@ -7,7 +7,15 @@
   box-sizing: border-box;
 }
 
-html, body { overscroll-behavior: none; }
+/* Use fill-available so mobile browser chrome is always accounted for */
+html {
+  height: -webkit-fill-available;
+  overscroll-behavior: none;
+}
+body {
+  min-height: -webkit-fill-available;
+  overscroll-behavior: none;
+}
 
 :root {
   --tc-600: #B24B2F;
@@ -64,7 +72,10 @@ input[type="number"] { -moz-appearance: textfield; }
   @apply focus:border-primary-500 transition-colors;
 }
 
-.safe-bottom { padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px); }
+/* iOS home-indicator safe area + minimum tap padding */
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+}
 
 @media print {
   body { background: white; }
