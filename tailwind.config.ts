@@ -22,8 +22,10 @@ const config: Config = {
       },
       screens: {
         xs: "380px",
+        sm: "480px",   // fills the gap between xs and md
         md: "768px",
         lg: "1024px",
+        xl: "1280px",
       },
       maxWidth: {
         app: "480px",
