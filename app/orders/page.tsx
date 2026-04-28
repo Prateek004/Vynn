@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { isSupabaseEnabled } from "@/lib/supabase/client";
 
-// ─── Shared bill post-screen (Invoice / WhatsApp / KOT) ────────────────────
 type PostTab = "invoice" | "whatsapp" | "kot";
 
 function BillScreen({
@@ -57,7 +56,7 @@ function BillScreen({
       <div class="c">${tableInfo} · #${order.billNumber}</div>
       <div class="c">${new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div>
       <hr/>
-      ${order.items.map((i) => `<div class="item">${i.qty}x ${i.name}${i.selectedPortion ? ` (${i.selectedPortion})` : ""}${i.selectedAddOns.length ? ` + ${i.selectedAddOns.map((a) => a.name).join(", ")}` : ""}${i.notes ? `<br/><em style="font-size:11px">→ ${i.notes}</em>` : ""}</div>`).join("")}
+      ${order.items.map((i) => `<div class="item">${i.qty}x ${i.name}${i.selectedPortion ? ` (${i.selectedPortion})` : ""}${i.selectedAddOns.length ? ` + ${i.selectedAddOns.map((a) => a.name).join(", ")}` : ""}${i.notes ? `<br/><em style="font-size:11px">-> ${i.notes}</em>` : ""}</div>`).join("")}
       <hr/></body></html>`;
     const w = window.open("", "_blank", "width=300,height=400");
     if (!w) return;
@@ -69,13 +68,13 @@ function BillScreen({
 
   const handleWhatsApp = () => {
     const lines = [
-      `🧾 *Bill from ${session?.businessName ?? "Vynn"}*`,
+      `*Bill from ${session?.businessName ?? "Vynn"}*`,
       `Bill #: ${order.billNumber}`,
       `Date: ${fmtDate(order.createdAt)}`,
       ``,
       ...order.items.map((i) => {
         const ao = i.selectedAddOns.reduce((s, a) => s + a.pricePaise, 0);
-        return `• ${i.name} x${i.qty}  ${fmtRupee((i.unitPricePaise + ao) * i.qty)}`;
+        return `- ${i.name} x${i.qty}  ${fmtRupee((i.unitPricePaise + ao) * i.qty)}`;
       }),
       ``,
       `Subtotal: ${fmtRupee(order.subtotalPaise)}`,
@@ -84,7 +83,7 @@ function BillScreen({
       `*Total: ${fmtRupee(order.totalPaise)}*`,
       `Payment: ${order.paymentMethod.toUpperCase()}`,
       ``,
-      `Thank you! 🙏`,
+      `Thank you!`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -93,7 +92,6 @@ function BillScreen({
 
   return (
     <div className="flex flex-col" style={{ maxHeight: "88dvh" }}>
-      {/* Success banner */}
       <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-gray-100">
         <div className="w-11 h-11 rounded-full bg-green-100 flex items-center justify-center shrink-0">
           <CheckCircle2 size={24} className="text-green-500" />
@@ -115,7 +113,6 @@ function BillScreen({
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-gray-100 px-3 pt-2">
         {postTabs.map(({ id, label, Icon }) => (
           <button
@@ -134,7 +131,6 @@ function BillScreen({
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        {/* Invoice */}
         {postTab === "invoice" && (
           <div>
             <div
@@ -164,7 +160,7 @@ function BillScreen({
                       <span>{fmtRupee(line)}</span>
                     </div>
                     <div className="text-gray-400 pl-2">
-                      {item.qty} × {fmtRupee(item.unitPricePaise + ao)}
+                      {item.qty} x {fmtRupee(item.unitPricePaise + ao)}
                     </div>
                   </div>
                 );
@@ -202,7 +198,7 @@ function BillScreen({
                 </div>
               )}
               <div className="border-t border-dashed border-gray-300 my-3" />
-              <div className="text-center text-gray-400">Thank you! Visit again 🙏</div>
+              <div className="text-center text-gray-400">Thank you! Visit again</div>
             </div>
             <button
               onClick={handlePrint}
@@ -214,7 +210,6 @@ function BillScreen({
           </div>
         )}
 
-        {/* WhatsApp */}
         {postTab === "whatsapp" && (
           <div className="flex flex-col items-center text-center py-4">
             <div className="w-16 h-16 rounded-3xl bg-green-500 flex items-center justify-center mb-4">
@@ -232,7 +227,6 @@ function BillScreen({
           </div>
         )}
 
-        {/* KOT */}
         {postTab === "kot" && (
           <div className="flex flex-col items-center text-center py-4">
             <div className="w-16 h-16 rounded-3xl bg-orange-500 flex items-center justify-center mb-4">
@@ -246,7 +240,7 @@ function BillScreen({
             <div className="w-full bg-gray-50 rounded-2xl p-4 text-left mb-6 space-y-2">
               {order.items.map((item, i) => (
                 <div key={i} className="flex gap-2 text-sm">
-                  <span className="font-black text-primary-500 w-6 shrink-0">{item.qty}×</span>
+                  <span className="font-black text-primary-500 w-6 shrink-0">{item.qty}x</span>
                   <div>
                     <p className="font-bold text-gray-900">{item.name}</p>
                     {item.selectedPortion && (
@@ -258,7 +252,7 @@ function BillScreen({
                       </p>
                     )}
                     {item.notes && (
-                      <p className="text-xs text-orange-500 italic">→ {item.notes}</p>
+                      <p className="text-xs text-orange-500 italic">-&gt; {item.notes}</p>
                     )}
                   </div>
                 </div>
@@ -287,7 +281,6 @@ function BillScreen({
   );
 }
 
-// ─── Full checkout flow for closing open tables ─────────────────────────────
 const PAY_METHODS: { id: PaymentMethod; label: string; Icon: React.ElementType }[] = [
   { id: "cash",  label: "Cash",  Icon: Banknote   },
   { id: "upi",   label: "UPI",   Icon: Smartphone },
@@ -320,7 +313,6 @@ function CloseTableCheckout({
 
   const hasUpi = Boolean(session?.upiId);
 
-  // GST-compliant calculation
   const subtotalPaise  = tab.items.reduce((s, i) => {
     const ao = i.selectedAddOns.reduce((x, a) => x + a.pricePaise, 0);
     return s + (i.unitPricePaise + ao) * i.qty;
@@ -345,7 +337,6 @@ function CloseTableCheckout({
       (method === "cash" && cashInput !== "" && cashPaise >= totalPaise) ||
       (method === "split" && splitOk));
 
-  // QR generation
   useEffect(() => {
     if (!showUpiQr || !hasUpi) return;
     const amount = (totalPaise / 100).toFixed(2);
@@ -382,39 +373,40 @@ function CloseTableCheckout({
 
   return (
     <div className="px-5 pb-6 space-y-4 pt-1">
-      {/* Items summary */}
       <div className="bg-gray-50 rounded-2xl p-4 max-h-36 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-          Table {tab.tableNumber} — {tab.items.reduce((s, i) => s + i.qty, 0)} items
+          Table {tab.tableNumber} - {tab.items.reduce((s, i) => s + i.qty, 0)} items
         </p>
         {tab.items.map((item, i) => {
           const ao = item.selectedAddOns.reduce((s, a) => s + a.pricePaise, 0);
           return (
             <div key={i} className="flex justify-between text-xs text-gray-600 mb-1">
-              <span>{item.qty}× {item.name}{item.selectedPortion ? ` (${item.selectedPortion})` : ""}</span>
+              <span>{item.qty}x {item.name}{item.selectedPortion ? ` (${item.selectedPortion})` : ""}</span>
               <span className="font-semibold ml-2 shrink-0">{fmtRupee((item.unitPricePaise + ao) * item.qty)}</span>
             </div>
           );
         })}
       </div>
 
-      {/* Discount */}
       <div>
         <p className="text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Discount (optional)</p>
         <div className="flex gap-2">
           <div className="flex rounded-xl border border-gray-200 overflow-hidden shrink-0">
             <button onClick={() => setDiscountType("flat")}
-              className={`px-3 py-2 text-xs font-bold transition-colors ${discountType === "flat" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>₹</button>
+              className={`px-3 py-2 text-xs font-bold transition-colors ${discountType === "flat" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>
+              &#8377;
+            </button>
             <button onClick={() => setDiscountType("percent")}
-              className={`px-3 py-2 text-xs font-bold transition-colors ${discountType === "percent" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>%</button>
+              className={`px-3 py-2 text-xs font-bold transition-colors ${discountType === "percent" ? "bg-primary-500 text-white" : "bg-white text-gray-500"}`}>
+              %
+            </button>
           </div>
           <input type="number" className="flex-1 h-10 px-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-primary-500"
-            placeholder={discountType === "flat" ? "Flat discount ₹" : "Discount %"}
+            placeholder={discountType === "flat" ? "Flat discount" : "Discount %"}
             value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} />
         </div>
       </div>
 
-      {/* GST-compliant totals */}
       <div className="bg-gray-50 rounded-2xl p-4 space-y-1.5 text-sm">
         <div className="flex justify-between text-gray-500">
           <span>Subtotal</span>
@@ -424,7 +416,7 @@ function CloseTableCheckout({
           <>
             <div className="flex justify-between text-green-600">
               <span>Discount</span>
-              <span className="font-semibold">−{fmtRupee(discountPaise)}</span>
+              <span className="font-semibold">-{fmtRupee(discountPaise)}</span>
             </div>
             <div className="flex justify-between text-gray-400 text-xs">
               <span>Taxable amount</span>
@@ -444,7 +436,6 @@ function CloseTableCheckout({
         </div>
       </div>
 
-      {/* Payment method */}
       <div>
         <p className="text-sm font-bold text-gray-700 mb-2">Payment Method</p>
         <div className="grid grid-cols-3 gap-2">
@@ -460,7 +451,6 @@ function CloseTableCheckout({
         </div>
       </div>
 
-      {/* Cash */}
       {method === "cash" && (
         <div className="space-y-3">
           <input type="number" autoFocus
@@ -479,7 +469,7 @@ function CloseTableCheckout({
                     ? "border-primary-500 bg-primary-50 text-primary-600"
                     : "border-gray-200 text-gray-600 bg-white"
                 }`}>
-                ₹{amt}
+                &#8377;{amt}
               </button>
             ))}
             <button onClick={() => setCashInput(String(totalPaise / 100))}
@@ -499,11 +489,10 @@ function CloseTableCheckout({
         </div>
       )}
 
-      {/* UPI */}
       {method === "upi" && (
         <div className="space-y-3">
           <div className="bg-blue-50 rounded-2xl p-4 text-center">
-            <p className="text-3xl mb-2">📱</p>
+            <p className="text-3xl mb-2">&#128241;</p>
             <p className="font-bold text-blue-800">Collect via UPI</p>
             <p className="text-sm text-blue-600 mt-1">{fmtRupee(totalPaise)}</p>
           </div>
@@ -529,23 +518,22 @@ function CloseTableCheckout({
           }`}>
             <input type="checkbox" checked={upiConfirmed} onChange={(e) => setUpiConfirmed(e.target.checked)}
               className="w-5 h-5 accent-primary-500 shrink-0" />
-            <span className="text-sm font-bold text-gray-700">Payment received on UPI ✓</span>
+            <span className="text-sm font-bold text-gray-700">Payment received on UPI</span>
           </label>
         </div>
       )}
 
-      {/* Split */}
       {method === "split" && (
         <div className="space-y-3">
           <p className="text-sm font-bold text-gray-700">Split Payment</p>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-xs text-gray-500 font-semibold block mb-1">Cash ₹</label>
+              <label className="text-xs text-gray-500 font-semibold block mb-1">Cash</label>
               <input type="number" className="bm-input" placeholder="0"
                 value={splitCash} onChange={(e) => setSplitCash(e.target.value)} />
             </div>
             <div className="flex-1">
-              <label className="text-xs text-gray-500 font-semibold block mb-1">UPI ₹</label>
+              <label className="text-xs text-gray-500 font-semibold block mb-1">UPI</label>
               <input type="number" className="bm-input" placeholder="0"
                 value={splitUpi} onChange={(e) => setSplitUpi(e.target.value)} />
             </div>
@@ -553,7 +541,7 @@ function CloseTableCheckout({
           <div className={`rounded-xl py-2 px-3 text-sm font-bold text-center ${
             splitOk ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-500"
           }`}>
-            {splitOk ? `Covered ✓ (${fmtRupee(splitTotal)})` : `Need ${fmtRupee(totalPaise)} · have ${fmtRupee(splitTotal)}`}
+            {splitOk ? `Covered (${fmtRupee(splitTotal)})` : `Need ${fmtRupee(totalPaise)} · have ${fmtRupee(splitTotal)}`}
           </div>
         </div>
       )}
@@ -561,13 +549,12 @@ function CloseTableCheckout({
       <button disabled={!canConfirm} onClick={handleConfirm}
         className="w-full h-14 bg-primary-500 text-white rounded-2xl font-black text-lg disabled:opacity-40 press shadow-md flex items-center justify-center gap-2">
         {placing && <Loader2 size={18} className="animate-spin" />}
-        {placing ? "Processing…" : `Collect ${fmtRupee(totalPaise)} & Close`}
+        {placing ? "Processing..." : `Collect ${fmtRupee(totalPaise)} & Close`}
       </button>
     </div>
   );
 }
 
-// ─── Add Items Modal ────────────────────────────────────────────────────────
 function AddItemsModal({
   tab,
   onClose,
@@ -625,7 +612,7 @@ function AddItemsModal({
                         }
                         className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-primary-500 press font-bold"
                       >
-                        −
+                        -
                       </button>
                       <span className="text-sm font-black text-gray-900 w-5 text-center">{inCart.qty}</span>
                     </>
@@ -656,18 +643,17 @@ function AddItemsModal({
   );
 }
 
-// ─── Main Orders Page ───────────────────────────────────────────────────────
 export default function OrdersPage() {
   const { state, openTableAddItems, showToast } = useApp();
   const uid = state.session?.userId ?? "default";
 
-  const [allOrders, setAllOrders]   = useState<Order[]>([]);
-  const [filter, setFilter]         = useState<"today" | "all">("today");
-  const [tab, setTab]               = useState<"orders" | "tables">("orders");
-  const [syncing, setSyncing]       = useState(false);
-  const [expanded, setExpanded]     = useState<string | null>(null);
-  const [addingTo, setAddingTo]     = useState<OpenTable | null>(null);
-  const [closingTab, setClosingTab] = useState<OpenTable | null>(null);
+  const [allOrders, setAllOrders]     = useState<Order[]>([]);
+  const [filter, setFilter]           = useState<"today" | "all">("today");
+  const [tab, setTab]                 = useState<"orders" | "tables">("orders");
+  const [syncing, setSyncing]         = useState(false);
+  const [expanded, setExpanded]       = useState<string | null>(null);
+  const [addingTo, setAddingTo]       = useState<OpenTable | null>(null);
+  const [closingTab, setClosingTab]   = useState<OpenTable | null>(null);
   const [billedOrder, setBilledOrder] = useState<Order | null>(null);
 
   const isOwner          = state.session?.role === "owner";
@@ -698,7 +684,7 @@ export default function OrdersPage() {
   const handleAddItems = async (items: CartItem[]) => {
     if (!addingTo) return;
     await openTableAddItems(addingTo.tableNumber, items);
-    showToast(`Added ${items.reduce((s, i) => s + i.qty, 0)} items to Table ${addingTo.tableNumber} ✓`);
+    showToast(`Added ${items.reduce((s, i) => s + i.qty, 0)} items to Table ${addingTo.tableNumber}`);
     setAddingTo(null);
   };
 
@@ -709,9 +695,10 @@ export default function OrdersPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50">
+
         {/* Header */}
-        <div className="bg-white px-4 pt-12 lg:pt-5 pb-4 shadow-sm">
+        <div className="bg-white px-4 lg:px-8 pt-12 lg:pt-6 pb-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-black text-gray-900">Orders</h1>
             {isSupabaseEnabled() && (
@@ -743,9 +730,10 @@ export default function OrdersPage() {
           )}
         </div>
 
-        <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+        {/* Content — full width, left-aligned on desktop */}
+        <div className="px-4 lg:px-8 py-4 space-y-4 w-full">
 
-          {/* ── OPEN TABLES TAB ── */}
+          {/* Open Tables tab */}
           {openTableEnabled && tab === "tables" && (
             <>
               {state.openTables.length === 0 ? (
@@ -787,7 +775,7 @@ export default function OrdersPage() {
                         {openTab.items.map((item, i) => (
                           <div key={i} className="flex justify-between text-sm text-gray-600">
                             <span>
-                              {item.qty}× {item.name}
+                              {item.qty}x {item.name}
                               {item.selectedPortion ? ` (${item.selectedPortion})` : ""}
                             </span>
                             <span className="font-medium">
@@ -822,7 +810,7 @@ export default function OrdersPage() {
             </>
           )}
 
-          {/* ── ORDERS TAB ── */}
+          {/* Orders tab */}
           {(!openTableEnabled || tab === "orders") && (
             <>
               <div className="grid grid-cols-2 gap-3">
@@ -904,8 +892,8 @@ export default function OrdersPage() {
                             </span>
                           </div>
                           <p className="text-xs text-gray-400 mt-0.5">
-                            {fmtTime(order.createdAt)} ·{" "}
-                            {PAY_LABEL[order.paymentMethod] ?? order.paymentMethod} ·{" "}
+                            {fmtTime(order.createdAt)} &middot;{" "}
+                            {PAY_LABEL[order.paymentMethod] ?? order.paymentMethod} &middot;{" "}
                             {SERVICE_LABEL[order.serviceMode] ?? order.serviceMode}
                           </p>
                         </div>
@@ -930,7 +918,7 @@ export default function OrdersPage() {
                               <div key={i} className="flex justify-between text-sm">
                                 <div className="flex-1 min-w-0">
                                   <span className="font-semibold text-gray-800">
-                                    {item.qty}× {item.name}
+                                    {item.qty}x {item.name}
                                   </span>
                                   {item.selectedPortion && (
                                     <span className="text-gray-400 text-xs ml-1">
@@ -943,7 +931,7 @@ export default function OrdersPage() {
                                     </p>
                                   )}
                                   {item.notes && (
-                                    <p className="text-xs text-primary-400 italic">→ {item.notes}</p>
+                                    <p className="text-xs text-primary-400 italic">-&gt; {item.notes}</p>
                                   )}
                                 </div>
                                 <span className="font-semibold text-gray-700 shrink-0 ml-2">
@@ -960,7 +948,7 @@ export default function OrdersPage() {
                             {order.discountPaise > 0 && (
                               <div className="flex justify-between text-green-600">
                                 <span>Discount</span>
-                                <span>−{fmtRupee(order.discountPaise)}</span>
+                                <span>-{fmtRupee(order.discountPaise)}</span>
                               </div>
                             )}
                             {order.gstPercent > 0 && (
@@ -991,7 +979,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Add items to open table */}
       {addingTo && (
         <AddItemsModal
           tab={addingTo}
@@ -1000,7 +987,6 @@ export default function OrdersPage() {
         />
       )}
 
-      {/* Close table — full checkout modal */}
       <Modal
         open={!!closingTab && !billedOrder}
         onClose={() => setClosingTab(null)}
@@ -1015,7 +1001,6 @@ export default function OrdersPage() {
         )}
       </Modal>
 
-      {/* Post-bill screen — invoice / whatsapp / kot */}
       <Modal
         open={!!billedOrder}
         onClose={() => setBilledOrder(null)}
