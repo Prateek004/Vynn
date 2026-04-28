@@ -5,6 +5,7 @@ import AppShell from "@/components/ui/AppShell";
 import { fmtRupee, todayStr, PAY_LABEL } from "@/lib/utils";
 import type { Order } from "@/lib/types";
 import { Banknote, Smartphone, ShoppingBag, Bell } from "lucide-react";
+
 function DonutChart({
   segments,
 }: {
@@ -139,7 +140,6 @@ export default function DashboardPage() {
   });
   const bizName = state.session?.businessName ?? "Business";
 
-  // Design tokens
   const ink = "#1C1410",
     ink2 = "#5C4E47",
     ink3 = "#9C8E87";
@@ -160,13 +160,9 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      {/*
-        No minHeight: 100vh here — AppShell's overflow-y-auto main handles
-        scrolling. Let content be naturally tall.
-      */}
       <div style={{ background: sand, fontFamily: "inherit" }}>
 
-        {/* ── Topbar ── */}
+        {/* Topbar */}
         <div className="flex items-center justify-between px-4 sm:px-7 pt-12 lg:pt-7 pb-0">
           <div>
             <div
@@ -200,10 +196,9 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* All sections share the same responsive horizontal padding */}
         <div className="px-4 sm:px-7">
 
-          {/* ── Hero card ── */}
+          {/* Hero card */}
           <div style={{ paddingTop: 20 }}>
             <div
               style={{
@@ -215,12 +210,7 @@ export default function DashboardPage() {
               }}
             >
               <svg
-                style={{
-                  position: "absolute",
-                  right: -20,
-                  top: -20,
-                  opacity: 0.06,
-                }}
+                style={{ position: "absolute", right: -20, top: -20, opacity: 0.06 }}
                 width="200"
                 height="230"
                 viewBox="0 0 200 230"
@@ -250,7 +240,7 @@ export default function DashboardPage() {
                 }}
               >
                 <span style={{ fontSize: 16, color: tc400, marginRight: 4 }}>
-                  ₹
+                  &#8377;
                 </span>
                 {(todaySales / 100).toLocaleString("en-IN", {
                   maximumFractionDigits: 0,
@@ -260,17 +250,9 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div style={{ fontSize: 12, color: "#7BC47B", marginTop: 8 }}>
-                {todayOrders.length} order
-                {todayOrders.length !== 1 ? "s" : ""} today
+                {todayOrders.length} order{todayOrders.length !== 1 ? "s" : ""} today
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 22,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
                 {[
                   ["All Orders", "/orders"],
                   ["Menu", "/menu"],
@@ -290,12 +272,9 @@ export default function DashboardPage() {
                       textAlign: "center",
                       cursor: "pointer",
                       textDecoration: "none",
-                      border: `0.5px solid ${
-                        i === 0 ? tc600 : "rgba(255,255,255,0.12)"
-                      }`,
+                      border: `0.5px solid ${i === 0 ? tc600 : "rgba(255,255,255,0.12)"}`,
                       color: i === 0 ? "white" : "rgba(255,255,255,0.7)",
-                      background:
-                        i === 0 ? tc600 : "rgba(255,255,255,0.06)",
+                      background: i === 0 ? tc600 : "rgba(255,255,255,0.06)",
                     }}
                   >
                     {label}
@@ -305,27 +284,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ── 3 metric cards — 1 col on tiny screens, 3 on xs+ ── */}
+          {/* 3 metric cards */}
           <div className="grid grid-cols-1 xs:grid-cols-3 gap-3 mt-4">
             <div style={card}>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: ink3,
-                  letterSpacing: "0.04em",
-                  marginBottom: 6,
-                }}
-              >
+              <div style={{ fontSize: 11, color: ink3, letterSpacing: "0.04em", marginBottom: 6 }}>
                 TOTAL REVENUE
               </div>
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 500,
-                  color: ink,
-                  letterSpacing: "-0.02em",
-                }}
-              >
+              <div style={{ fontSize: 20, fontWeight: 500, color: ink, letterSpacing: "-0.02em" }}>
                 {fmtRupee(totalSales)}
               </div>
               <div style={{ fontSize: 11, color: green, marginTop: 4 }}>
@@ -333,24 +298,10 @@ export default function DashboardPage() {
               </div>
             </div>
             <div style={card}>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: ink3,
-                  letterSpacing: "0.04em",
-                  marginBottom: 6,
-                }}
-              >
+              <div style={{ fontSize: 11, color: ink3, letterSpacing: "0.04em", marginBottom: 6 }}>
                 AVG ORDER
               </div>
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 500,
-                  color: ink,
-                  letterSpacing: "-0.02em",
-                }}
-              >
+              <div style={{ fontSize: 20, fontWeight: 500, color: ink, letterSpacing: "-0.02em" }}>
                 {fmtRupee(avgOrder)}
               </div>
               <div style={{ fontSize: 11, color: ink3, marginTop: 4 }}>
@@ -358,24 +309,10 @@ export default function DashboardPage() {
               </div>
             </div>
             <div style={card}>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: ink3,
-                  letterSpacing: "0.04em",
-                  marginBottom: 6,
-                }}
-              >
+              <div style={{ fontSize: 11, color: ink3, letterSpacing: "0.04em", marginBottom: 6 }}>
                 TODAY ORDERS
               </div>
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 500,
-                  color: ink,
-                  letterSpacing: "-0.02em",
-                }}
-              >
+              <div style={{ fontSize: 20, fontWeight: 500, color: ink, letterSpacing: "-0.02em" }}>
                 {todayOrders.length}
               </div>
               <div style={{ fontSize: 11, color: ink3, marginTop: 4 }}>
@@ -384,9 +321,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ── Recent orders + Payment donut — stack on mobile ── */}
+          {/* Recent orders + Payment donut */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-            {/* Recent orders */}
             <div style={card}>
               <div
                 style={{
@@ -399,22 +335,12 @@ export default function DashboardPage() {
                 <span style={{ fontSize: 13, fontWeight: 500, color: ink }}>
                   Recent orders
                 </span>
-                
-                  href="/orders"
-                  style={{ fontSize: 11, color: tc600, textDecoration: "none" }}
-                >
+                <a href="/orders" style={{ fontSize: 11, color: tc600, textDecoration: "none" }}>
                   View all
                 </a>
               </div>
               {recentOrders.length === 0 && (
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: ink3,
-                    textAlign: "center",
-                    padding: "16px 0",
-                  }}
-                >
+                <p style={{ fontSize: 13, color: ink3, textAlign: "center", padding: "16px 0" }}>
                   No orders yet
                 </p>
               )}
@@ -474,7 +400,7 @@ export default function DashboardPage() {
                         {order.items.map((i) => i.name).join(", ")}
                       </div>
                       <div style={{ fontSize: 11, color: ink3, marginTop: 1 }}>
-                        {dayLabel(order.createdAt)} ·{" "}
+                        {dayLabel(order.createdAt)} &middot;{" "}
                         {PAY_LABEL[order.paymentMethod] ?? order.paymentMethod}
                       </div>
                     </div>
@@ -496,18 +422,10 @@ export default function DashboardPage() {
 
             {/* Payment donut */}
             <div style={card}>
-              <div
-                style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 12 }}
-              >
+              <div style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 12 }}>
                 Payment methods
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  margin: "8px 0 4px",
-                }}
-              >
+              <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 4px" }}>
                 {donutSegs.length > 0 ? (
                   <DonutChart segments={donutSegs} />
                 ) : (
@@ -529,24 +447,13 @@ export default function DashboardPage() {
               <div style={{ marginTop: 12 }}>
                 {Object.entries(byMethod).map(([m, paise]) => {
                   const pct =
-                    totalSales > 0
-                      ? Math.round((paise / totalSales) * 100)
-                      : 0;
+                    totalSales > 0 ? Math.round((paise / totalSales) * 100) : 0;
                   const color =
-                    m === "cash"
-                      ? "#B24B2F"
-                      : m === "upi"
-                      ? "#D97C5A"
-                      : "#EEC3AD";
+                    m === "cash" ? "#B24B2F" : m === "upi" ? "#D97C5A" : "#EEC3AD";
                   return (
                     <div
                       key={m}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "7px 0",
-                      }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0" }}
                     >
                       <div
                         style={{
@@ -592,14 +499,7 @@ export default function DashboardPage() {
                   );
                 })}
                 {Object.keys(byMethod).length === 0 && (
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: ink3,
-                      textAlign: "center",
-                      padding: "8px 0",
-                    }}
-                  >
+                  <p style={{ fontSize: 12, color: ink3, textAlign: "center", padding: "8px 0" }}>
                     No payment data yet
                   </p>
                 )}
@@ -607,23 +507,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ── Top items + Sparkline — stack on mobile ── */}
+          {/* Top items + Sparkline */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4 pb-8">
             <div style={card}>
-              <div
-                style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 14 }}
-              >
+              <div style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 14 }}>
                 Top items by revenue
               </div>
               {topItems.length === 0 && (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: ink3,
-                    textAlign: "center",
-                    padding: "12px 0",
-                  }}
-                >
+                <p style={{ fontSize: 12, color: ink3, textAlign: "center", padding: "12px 0" }}>
                   No sales data yet
                 </p>
               )}
@@ -641,9 +532,7 @@ export default function DashboardPage() {
                         : "none",
                   }}
                 >
-                  <span
-                    style={{ width: 20, fontSize: 11, fontWeight: 700, color: ink3 }}
-                  >
+                  <span style={{ width: 20, fontSize: 11, fontWeight: 700, color: ink3 }}>
                     {i + 1}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -660,14 +549,7 @@ export default function DashboardPage() {
                     </p>
                     <p style={{ fontSize: 11, color: ink3 }}>{item.qty} sold</p>
                   </div>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: tc600,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <span style={{ fontSize: 13, fontWeight: 500, color: tc600, whiteSpace: "nowrap" }}>
                     {fmtRupee(item.revenue)}
                   </span>
                 </div>
@@ -675,9 +557,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={card}>
-              <div
-                style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}
-              >
+              <div style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>
                 Recent order values
               </div>
               <div style={{ fontSize: 11, color: ink3, marginBottom: 16 }}>
@@ -688,14 +568,7 @@ export default function DashboardPage() {
                   <SparkBars values={last7} />
                 </div>
               ) : (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: ink3,
-                    textAlign: "center",
-                    padding: "12px 0",
-                  }}
-                >
+                <p style={{ fontSize: 12, color: ink3, textAlign: "center", padding: "12px 0" }}>
                   No data yet
                 </p>
               )}
@@ -709,26 +582,18 @@ export default function DashboardPage() {
                 }}
               >
                 <div>
-                  <p style={{ fontSize: 10, color: ink3, letterSpacing: "0.1em" }}>
-                    LIFETIME
-                  </p>
-                  <p style={{ fontSize: 16, fontWeight: 500, color: ink }}>
-                    {fmtRupee(totalSales)}
-                  </p>
+                  <p style={{ fontSize: 10, color: ink3, letterSpacing: "0.1em" }}>LIFETIME</p>
+                  <p style={{ fontSize: 16, fontWeight: 500, color: ink }}>{fmtRupee(totalSales)}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p style={{ fontSize: 10, color: ink3, letterSpacing: "0.1em" }}>
-                    ORDERS
-                  </p>
-                  <p style={{ fontSize: 16, fontWeight: 500, color: ink }}>
-                    {totalOrders}
-                  </p>
+                  <p style={{ fontSize: 10, color: ink3, letterSpacing: "0.1em" }}>ORDERS</p>
+                  <p style={{ fontSize: 16, fontWeight: 500, color: ink }}>{totalOrders}</p>
                 </div>
               </div>
             </div>
           </div>
 
-        </div>{/* end px-4 sm:px-7 wrapper */}
+        </div>
       </div>
     </AppShell>
   );
