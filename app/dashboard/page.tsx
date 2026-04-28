@@ -1,11 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "@/lib/store/AppContext";
 import AppShell from "@/components/ui/AppShell";
 import { fmtRupee, todayStr, PAY_LABEL } from "@/lib/utils";
 import type { Order } from "@/lib/types";
 import { Banknote, Smartphone, ShoppingBag, Bell } from "lucide-react";
-
 function DonutChart({
   segments,
 }: {
